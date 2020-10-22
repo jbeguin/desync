@@ -96,6 +96,9 @@ func TestSparseFileRead(t *testing.T) {
 		require.Equal(t, fromBlob, fromSparse)
 	}
 
+	err = sparse.loader.writeState()
+	require.NoError(t, err)
+
 	// Read the whole file. After this is should match the whole blob
 	whole := make([]byte, index.Length())
 	_, err = h.ReadAt(whole, 0)
