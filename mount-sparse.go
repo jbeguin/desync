@@ -26,8 +26,8 @@ var _ fs.NodeOnAdder = &SparseMountFS{}
 var _ MountFS = &SparseMountFS{}
 
 // NewSparseMountFS initializes a FUSE filesystem mount based on an index, a sparse file and a chunk store.
-func NewSparseMountFS(idx Index, name string, s Store, sparseFile string) (*SparseMountFS, error) {
-	sf, err := NewSparseFile(sparseFile, idx, s)
+func NewSparseMountFS(idx Index, name string, s Store, sparseFile string, opt SparseFileOptions) (*SparseMountFS, error) {
+	sf, err := NewSparseFile(sparseFile, idx, s, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -48,9 +48,14 @@ func (r *SparseMountFS) OnAdd(ctx context.Context) {
 	r.AddChild(r.FName, ch, false)
 }
 
+// Save the state of the sparse file.
+func (r *SparseMountFS) WriteState() error {
+	return r.sf.WriteState()
+}
+
 // Close the sparse file and save its state.
 func (r *SparseMountFS) Close() error {
-	return r.sf.Close()
+	return r.sf.WriteState()
 }
 
 var _ fs.NodeGetattrer = &indexFile{}
