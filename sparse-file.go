@@ -2,16 +2,15 @@ package desync
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
-	"os/signal"
 	"sort"
+	"strconv"
 	"sync"
-<<<<<<< HEAD
-	"syscall"
-=======
->>>>>>> 7cc279314b4f1adc94bc51f0158b2f5bc35c5cb4
+	"sync/atomic"
+	"time"
 
 	"github.com/boljen/go-bitmap"
 )
@@ -109,24 +108,7 @@ func NewSparseFile(name string, idx Index, s Store, opt SparseFileOptions) (*Spa
 		}
 	}
 
-<<<<<<< HEAD
-	// save state file on SIGHUP.
-	sighup := make(chan os.Signal)
-	signal.Notify(sighup, syscall.SIGHUP)
-	go func() {
-		for range sighup {
-			loader.writeState()
-		}
-	}()
-
-	return &SparseFile{
-		name:   name,
-		idx:    idx,
-		loader: loader,
-	}, nil
-=======
 	return sf, nil
->>>>>>> 7cc279314b4f1adc94bc51f0158b2f5bc35c5cb4
 }
 
 // Open returns a handle for a sparse file.
@@ -145,10 +127,6 @@ func (sf *SparseFile) Length() int64 {
 
 // WriteState saves the state of file, basically which chunks were loaded
 // and which ones weren't.
-<<<<<<< HEAD
-func (sf *SparseFile) Close() error {
-	return sf.loader.writeState()
-=======
 func (sf *SparseFile) WriteState() error {
 	if sf.opt.StateSaveFile == "" {
 		return nil
@@ -159,7 +137,6 @@ func (sf *SparseFile) WriteState() error {
 	}
 	defer f.Close()
 	return sf.loader.writeState(f)
->>>>>>> 7cc279314b4f1adc94bc51f0158b2f5bc35c5cb4
 }
 
 // ReadAt reads from the sparse file. All accessed ranges are first written
@@ -185,6 +162,7 @@ type sparseFileLoader struct {
 	name string
 	done bitmap.Bitmap
 	mu   sync.RWMutex
+	mupb sync.RWMutex
 	s    Store
 
 	nullChunk *NullChunk
@@ -293,20 +271,13 @@ func (l *sparseFileLoader) loadChunk(i int) error {
 // been loaded. It's a bitmap of the
 // same length as the index, with 0 = chunk has not been loaded and
 // 1 = chunk has been loaded.
-<<<<<<< HEAD
-func (l *sparseFileLoader) writeState() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	return ioutil.WriteFile(l.name+".state", l.done.Data(false), 0644)
-=======
 func (l *sparseFileLoader) writeState(w io.Writer) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	fmt.Println("sparseFileLoader writeState")
 	_, err := w.Write(l.done.Data(false))
 	return err
->>>>>>> 7cc279314b4f1adc94bc51f0158b2f5bc35c5cb4
 }
 
 // loadState reads the "done" state from a reader. It's expected to be
@@ -332,20 +303,60 @@ func (l *sparseFileLoader) preloadChunksFromState(r io.Reader, n int) error {
 		return err
 	}
 
+	// progressbar file : Check how many chunks were marked as "done"
+	// total := 0
+	// current := 0
+	// current_progress := 0
+	var total uint64 = 0
+	var current uint64 = 0
+	var current_progress uint64 = 0
+	fmt.Println("preloadChunksFromState progressbar size...")
+	for chunkIdx := range l.chunks {
+		if state.Get(chunkIdx) {
+			total++
+		}
+	}
+	fmt.Println("preloadChunksFromState progressbar size = ", total)
+	pbw_name := l.name + ".progress.json"
+	pbw, err := os.Create(pbw_name)
+	if err != nil {
+		return err
+	}
+	// defer pbw.Close() -> at the end of workers goroutine
+
+	// no use of json lib for this tiny json
+	json_start := "{\"progress\":"
+
 	// Start the workers for parallel pre-loading
 	ch := make(chan int)
 	for i := 0; i < n; i++ {
 		go func() {
 			for chunkIdx := range ch {
 				_ = l.loadChunk(chunkIdx)
+				// record progress into file .progress.json
+				// current++
+				atomic.AddUint64(&current, 1)
+				progress := 100 * current / total
+				if progress > current_progress {
+					l.mupb.Lock()
+					current_progress = progress
+					json := json_start + strconv.FormatUint(progress, 10) + "}\n"
+					fmt.Println("preloadChunksFromState json progress = ", json)
+					_, err := pbw.WriteAt([]byte(json), 0)
+					if err != nil {
+						fmt.Println("preloadChunksFromState Error = ", err)
+					}
+					l.mupb.Unlock()
+				}
+				if progress == 100 {
+					time.Sleep(time.Second)
+					fmt.Println("preloadChunksFromState close pwb")
+					pbw.Close()
+				}
 			}
 		}()
 	}
 
-<<<<<<< HEAD
-	l.done = b
-
-=======
 	// Start the feeder. Iterate over the chunks and see if any of them
 	// are marked done in the state. If so, load those chunks.
 	go func() {
@@ -356,7 +367,6 @@ func (l *sparseFileLoader) preloadChunksFromState(r io.Reader, n int) error {
 		}
 		close(ch)
 	}()
->>>>>>> 7cc279314b4f1adc94bc51f0158b2f5bc35c5cb4
 	return nil
 }
 
