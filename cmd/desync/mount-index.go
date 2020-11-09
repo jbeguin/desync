@@ -6,10 +6,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/folbricht/desync"
 	"github.com/pkg/errors"
@@ -122,8 +120,6 @@ func runMountIndex(ctx context.Context, opt mountIndexOptions, args []string) er
 		}
 
 		// Save state file on SIGHUP
-		sighup := make(chan os.Signal)
-		signal.Notify(sighup, syscall.SIGHUP)
 		go func() {
 			for range sighup {
 				if err := fs.WriteState(); err != nil {
