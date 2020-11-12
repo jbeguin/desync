@@ -176,6 +176,23 @@ func setDigestAlgorithm() {
 	}
 }
 
+// Log Level
+var logLevel string
+
+func getLogrusLevel() logrus.Level {
+	switch logLevel {
+	case "fatal":
+		return logrus.FatalLevel
+	case "error":
+		return logrus.ErrorLevel
+	case "warn":
+		return logrus.WarnLevel
+	case "info":
+		return logrus.InfoLevel
+	}
+	return logrus.DebugLevel
+}
+
 // Verbose mode
 var verbose bool
 
@@ -185,7 +202,27 @@ func setVerbose() {
 			Out:       os.Stderr,
 			Formatter: new(logrus.TextFormatter),
 			// Hooks:     make(logrus.LevelHooks),
-			Level: logrus.DebugLevel,
+			Level: getLogrusLevel(),
+		}
+	}
+}
+
+// Error log file name, if any
+var logFileName string
+var logFile *os.File
+
+func setErrorFile() {
+	if logFileName != "" {
+		var err error
+		logFile, err = os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			fmt.Println("cant create error file", err)
+			return
+		}
+		desync.Log = &logrus.Logger{
+			Out:       logFile,
+			Formatter: new(logrus.TextFormatter),
+			Level:     getLogrusLevel(),
 		}
 	}
 }

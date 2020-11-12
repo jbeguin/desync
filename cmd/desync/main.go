@@ -38,7 +38,7 @@ func main() {
 	signal.Notify(sighup, syscall.SIGHUP)
 
 	// Read config early
-	cobra.OnInitialize(initConfig, setDigestAlgorithm, setVerbose)
+	cobra.OnInitialize(initConfig, setDigestAlgorithm, setVerbose, setErrorFile)
 
 	// Register the sub-commands under root
 	rootCmd := newRootCommand()
@@ -63,6 +63,14 @@ func main() {
 		newVerifyIndexCommand(ctx),
 		newMtreeCommand(ctx),
 	)
+
+	// Close error log file on SIGTERM or SIGINT
+	go func() {
+		<-ctx.Done()
+		if logFile != nil {
+			logFile.Close()
+		}
+	}()
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

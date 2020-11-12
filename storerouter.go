@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // StoreRouter is used to route requests to multiple stores. When a chunk is
@@ -31,8 +32,14 @@ func (r StoreRouter) GetChunk(id ChunkID) (*Chunk, error) {
 		case nil:
 			return chunk, nil
 		case ChunkMissing:
+			Log.WithFields(logrus.Fields{
+				"err": err,
+			}).Error("storerouter.GetChunk ChunkMissing Error")
 			continue
 		default:
+			Log.WithFields(logrus.Fields{
+				"err": err,
+			}).Error("storerouter.GetChunk Error")
 			return nil, errors.Wrap(err, s.String())
 		}
 	}

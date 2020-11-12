@@ -2,7 +2,6 @@ package desync
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/boljen/go-bitmap"
+	log "github.com/sirupsen/logrus"
 )
 
 // SparseFile represents a file that is written as it is read (Copy-on-read). It is
@@ -275,7 +275,6 @@ func (l *sparseFileLoader) writeState(w io.Writer) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	fmt.Println("sparseFileLoader writeState")
 	_, err := w.Write(l.done.Data(false))
 	return err
 }
@@ -304,19 +303,14 @@ func (l *sparseFileLoader) preloadChunksFromState(r io.Reader, n int) error {
 	}
 
 	// progressbar file : Check how many chunks were marked as "done"
-	// total := 0
-	// current := 0
-	// current_progress := 0
 	var total uint64 = 0
 	var current uint64 = 0
 	var current_progress uint64 = 0
-	fmt.Println("preloadChunksFromState progressbar size...")
 	for chunkIdx := range l.chunks {
 		if state.Get(chunkIdx) {
 			total++
 		}
 	}
-	fmt.Println("preloadChunksFromState progressbar size = ", total)
 	pbw_name := l.name + ".progress.json"
 	pbw, err := os.Create(pbw_name)
 	if err != nil {
@@ -334,23 +328,22 @@ func (l *sparseFileLoader) preloadChunksFromState(r io.Reader, n int) error {
 			for chunkIdx := range ch {
 				_ = l.loadChunk(chunkIdx)
 				// record progress into file .progress.json
-				// current++
 				atomic.AddUint64(&current, 1)
 				progress := 100 * current / total
 				if progress > current_progress {
 					l.mupb.Lock()
 					current_progress = progress
-					json := json_start + strconv.FormatUint(progress, 10) + "}\n"
-					fmt.Println("preloadChunksFromState json progress = ", json)
+					json := json_start + strconv.FormatUint(progress, 10) + "}"
 					_, err := pbw.WriteAt([]byte(json), 0)
 					if err != nil {
-						fmt.Println("preloadChunksFromState Error = ", err)
+						Log.WithFields(log.Fields{
+							"err": err,
+						}).Error("preloadChunksFromState Error")
 					}
 					l.mupb.Unlock()
 				}
 				if progress == 100 {
 					time.Sleep(time.Second)
-					fmt.Println("preloadChunksFromState close pwb")
 					pbw.Close()
 				}
 			}
