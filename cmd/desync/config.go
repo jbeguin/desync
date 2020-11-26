@@ -226,3 +226,12 @@ func setErrorFile() {
 		}
 	}
 }
+
+// Monitor, of address is given
+var monitorAddress string
+
+func setMonitor() {
+	if monitorAddress != "" {
+		desync.NewMonitor(monitorAddress)
+	}
+}

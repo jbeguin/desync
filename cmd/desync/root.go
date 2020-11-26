@@ -14,5 +14,6 @@ func newRootCommand() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&logLevel, "log-level", "", "log level, if log filename or verbose is define (debug, info, warn, error). debug default")
 	cmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "verbose mode")
 	cmd.PersistentFlags().StringVar(&logFileName, "log-filename", "", "log filename, if any. stop verbose mode")
+	cmd.PersistentFlags().StringVar(&monitorAddress, "monitor-addr", "", "json health monitor bind address")
 	return cmd
 }

@@ -22,6 +22,9 @@ type FailoverGroup struct {
 // NewFailoverGroup initializes and returns a store wraps multiple stores to form a group that can fail over
 // between them on failure from one.
 func NewFailoverGroup(stores ...Store) *FailoverGroup {
+	if singleMon != nil {
+		singleMon.SetCurrentStore(stores[0].String())
+	}
 	return &FailoverGroup{stores: stores}
 }
 
@@ -102,4 +105,7 @@ func (g *FailoverGroup) errorFrom(i int) {
 		return
 	}
 	g.active = (g.active + 1) % len(g.stores)
+	if singleMon != nil {
+		singleMon.SetCurrentStore(g.stores[g.active].String())
+	}
 }

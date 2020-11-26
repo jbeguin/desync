@@ -36,6 +36,9 @@ func NewLocalStore(dir string, opt StoreOptions) (LocalStore, error) {
 	if !info.IsDir() {
 		return LocalStore{}, fmt.Errorf("%s is not a directory", dir)
 	}
+	if singleMon != nil { // log to monitor
+		singleMon.SetLocalStore(dir)
+	}
 	return LocalStore{Base: dir, opt: opt}, nil
 }
 

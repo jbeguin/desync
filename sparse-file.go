@@ -333,6 +333,9 @@ func (l *sparseFileLoader) preloadChunksFromState(r io.Reader, n int) error {
 				if progress > current_progress {
 					l.mupb.Lock()
 					current_progress = progress
+					if singleMon != nil { // log to monitor
+						singleMon.SetProgress(int(progress))
+					}
 					json := json_start + strconv.FormatUint(progress, 10) + "}"
 					_, err := pbw.WriteAt([]byte(json), 0)
 					if err != nil {
