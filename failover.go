@@ -1,6 +1,7 @@
 package desync
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 )
@@ -22,8 +23,8 @@ type FailoverGroup struct {
 // NewFailoverGroup initializes and returns a store wraps multiple stores to form a group that can fail over
 // between them on failure from one.
 func NewFailoverGroup(stores ...Store) *FailoverGroup {
-	if singleMon != nil {
-		singleMon.SetCurrentStore(stores[0].String())
+	if singleMon != nil { // Log to monitor
+		singleMon.SetCurrentStore(stores[0].String(), "initial store")
 	}
 	return &FailoverGroup{stores: stores}
 }
@@ -39,6 +40,9 @@ func (g *FailoverGroup) GetChunk(id ChunkID) (*Chunk, error) {
 
 		// All stores are meant to hold the same chunks, fail on the first missing chunk
 		if _, ok := err.(ChunkMissing); ok {
+			if singleMon != nil { // Log to monitor
+				singleMon.SetCurrentStore("", err.Error())
+			}
 			return b, err
 		}
 
@@ -46,7 +50,7 @@ func (g *FailoverGroup) GetChunk(id ChunkID) (*Chunk, error) {
 		gErr = err
 
 		// Fail over to the next store
-		g.errorFrom(active)
+		g.errorFrom(active, err)
 	}
 	return nil, gErr
 }
@@ -64,7 +68,7 @@ func (g *FailoverGroup) HasChunk(id ChunkID) (bool, error) {
 		gErr = err
 
 		// Fail over to the next store
-		g.errorFrom(active)
+		g.errorFrom(active, err)
 	}
 	return false, gErr
 }
@@ -98,14 +102,15 @@ func (g *FailoverGroup) current() (Store, int) {
 // need i to know which store returned the error as there could be failures from concurrent
 // requests. Another request could have initiated the failover already. So ignore if i is not
 // (no longer) the active store.
-func (g *FailoverGroup) errorFrom(i int) {
+func (g *FailoverGroup) errorFrom(i int, err error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if i != g.active {
 		return
 	}
 	g.active = (g.active + 1) % len(g.stores)
-	if singleMon != nil {
-		singleMon.SetCurrentStore(g.stores[g.active].String())
+	fmt.Println("(g *FailoverGroup) errorFrom")
+	if singleMon != nil { // Log to monitor
+		singleMon.SetCurrentStore(g.stores[g.active].String(), err.Error())
 	}
 }
