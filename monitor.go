@@ -26,6 +26,7 @@ type Monitor struct {
 	Progress       int             `json:"progress,omitempty"`
 	LocalStore     string          `json:"local-store"`
 	FailoverStores []FailoverStore `json:"failover-stores"`
+	folen          int
 }
 
 var (
@@ -34,10 +35,10 @@ var (
 )
 
 // NewMonitor create a single telnet server listening on the given addr (":5555", "35.24.12.23:8957", ...)
-func NewMonitor(addr string) *Monitor {
+func NewMonitor(addr string, folen int) *Monitor {
 
 	onceMon.Do(func() {
-		singleMon = &Monitor{FailoverStores: make([]FailoverStore, 0)}
+		singleMon = &Monitor{FailoverStores: make([]FailoverStore, 0, folen), folen: folen}
 		go singleMon.init(addr)
 	})
 
@@ -54,7 +55,11 @@ func (monitor *Monitor) SetCurrentStore(currentStore string, previousReason stri
 		PreviousReason: previousReason,
 		Timestamp:      time.Now().Format("2006-01-02T15:04:05.00-07:00"),
 	}
-	monitor.FailoverStores = append(monitor.FailoverStores, fo)
+	if len(monitor.FailoverStores) == monitor.folen {
+		monitor.FailoverStores = append(monitor.FailoverStores[1:], fo)
+	} else {
+		monitor.FailoverStores = append(monitor.FailoverStores, fo)
+	}
 }
 
 func (monitor *Monitor) SetLocalStore(localStore string) {

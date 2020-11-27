@@ -1,7 +1,6 @@
 package desync
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 )
@@ -109,7 +108,6 @@ func (g *FailoverGroup) errorFrom(i int, err error) {
 		return
 	}
 	g.active = (g.active + 1) % len(g.stores)
-	fmt.Println("(g *FailoverGroup) errorFrom")
 	if singleMon != nil { // Log to monitor
 		singleMon.SetCurrentStore(g.stores[g.active].String(), err.Error())
 	}

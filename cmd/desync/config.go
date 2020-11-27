@@ -211,12 +211,12 @@ func setVerbose() {
 var logFileName string
 var logFile *os.File
 
-func setErrorFile() {
+func setLogFile() {
 	if logFileName != "" {
 		var err error
 		logFile, err = os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			fmt.Println("cant create error file", err)
+			fmt.Println("cant create log file", err)
 			return
 		}
 		desync.Log = &logrus.Logger{
@@ -229,9 +229,10 @@ func setErrorFile() {
 
 // Monitor, of address is given
 var monitorAddress string
+var monitorFailoverLen int
 
 func setMonitor() {
 	if monitorAddress != "" {
-		desync.NewMonitor(monitorAddress)
+		desync.NewMonitor(monitorAddress, monitorFailoverLen)
 	}
 }
