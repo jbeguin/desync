@@ -23,7 +23,7 @@ type FailoverGroup struct {
 // between them on failure from one.
 func NewFailoverGroup(stores ...Store) *FailoverGroup {
 	if singleMon != nil { // Log to monitor
-		singleMon.SetCurrentStore(stores[0].String(), "initial store")
+		singleMon.SetCurrentStore(stores[0].String(), "SIGHUP reload store conf")
 	}
 	return &FailoverGroup{stores: stores}
 }

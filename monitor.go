@@ -15,9 +15,11 @@ import (
 
 //
 type FailoverStore struct {
-	Store          string `json:"store"`
-	Timestamp      string `json:"timestamp"`
-	PreviousReason string `json:"previous-reason"`
+	Active    bool   `json:"active"`
+	Index     int    `json:"index"`
+	Store     string `json:"store"`
+	Timestamp string `json:"timestamp"`
+	Reason    string `json:"reason"`
 }
 
 // Monitor represents informations to display on telnet server
@@ -26,6 +28,7 @@ type Monitor struct {
 	Progress       int             `json:"progress,omitempty"`
 	LocalStore     string          `json:"local-store"`
 	FailoverStores []FailoverStore `json:"failover-stores"`
+	lastIndex      int
 	folen          int
 }
 
@@ -46,15 +49,29 @@ func NewMonitor(addr string, folen int) *Monitor {
 }
 
 func (monitor *Monitor) SetProgress(progress int) {
+	monitor.mu.Lock()
+	defer monitor.mu.Unlock()
 	monitor.Progress = progress
 }
 
+// SetCurrentStore set the current store. mutex is suppose to be used by the caller, but anyway...
 func (monitor *Monitor) SetCurrentStore(currentStore string, previousReason string) {
-	fo := FailoverStore{
-		Store:          currentStore,
-		PreviousReason: previousReason,
-		Timestamp:      time.Now().Format("2006-01-02T15:04:05.00-07:00"),
+	monitor.mu.Lock()
+	defer monitor.mu.Unlock()
+	if monitor.lastIndex >= monitor.folen {
+		monitor.FailoverStores[monitor.folen-1].Active = false
+		monitor.FailoverStores[monitor.folen-1].Reason = previousReason
+	} else if monitor.lastIndex > 0 {
+		monitor.FailoverStores[monitor.lastIndex-1].Active = false
+		monitor.FailoverStores[monitor.lastIndex-1].Reason = previousReason
 	}
+	fo := FailoverStore{
+		Active:    true,
+		Index:     monitor.lastIndex,
+		Store:     currentStore,
+		Timestamp: time.Now().Format("2006-01-02T15:04:05.00-07:00"),
+	}
+	monitor.lastIndex++
 	if len(monitor.FailoverStores) == monitor.folen {
 		monitor.FailoverStores = append(monitor.FailoverStores[1:], fo)
 	} else {
@@ -62,7 +79,11 @@ func (monitor *Monitor) SetCurrentStore(currentStore string, previousReason stri
 	}
 }
 
+// SetLocalStore real name is cache store. even if a reference store is local, cache is called after all,
+// but it's more clear like that.
 func (monitor *Monitor) SetLocalStore(localStore string) {
+	monitor.mu.Lock()
+	defer monitor.mu.Unlock()
 	monitor.LocalStore = localStore
 }
 
