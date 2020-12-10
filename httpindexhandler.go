@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"path"
+
+	"github.com/sirupsen/logrus"
 )
 
 // HTTPIndexHandler is the HTTP handler for index stores.
@@ -16,10 +18,22 @@ type HTTPIndexHandler struct {
 
 // NewHTTPIndexHandler initializes an HTTP index store handler
 func NewHTTPIndexHandler(s IndexStore, writable bool, auth string) http.Handler {
+	Log.Info("NewHTTPIndexHandler init")
 	return HTTPIndexHandler{HTTPHandlerBase{"index", writable, auth}, s}
 }
 
 func (h HTTPIndexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if h.authorization != "" && r.Header.Get("Authorization") != h.authorization {
+		Log.WithFields(logrus.Fields{
+			"request": r,
+		}).Warn("HTTPIndexHandler.ServeHTTP invalid Authorization")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if r.URL.Path == "/alive" {
+		return
+	}
+
 	indexName := path.Base(r.URL.Path)
 
 	switch r.Method {

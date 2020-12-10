@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // HTTPHandler is the server-side handler for a HTTP chunk store.
@@ -21,11 +22,15 @@ type HTTPHandler struct {
 
 // NewHTTPHandler initializes and returns a new HTTP handler for a chunks erver.
 func NewHTTPHandler(s Store, writable, skipVerifyWrite, uncompressed bool, auth string) http.Handler {
+	Log.Info("NewHTTPHandler init")
 	return HTTPHandler{HTTPHandlerBase{"chunk", writable, auth}, s, skipVerifyWrite, uncompressed}
 }
 
 func (h HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.authorization != "" && r.Header.Get("Authorization") != h.authorization {
+		Log.WithFields(logrus.Fields{
+			"request": r,
+		}).Warn("HTTPHandler.ServeHTTP invalid Authorization")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

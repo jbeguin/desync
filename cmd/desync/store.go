@@ -13,6 +13,7 @@ import (
 	"github.com/folbricht/desync"
 	"github.com/minio/minio-go/v6"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // MultiStoreWithCache is used to parse store and cache locations given in the
@@ -102,6 +103,11 @@ func storeFromLocation(location string, cmdOpt cmdStoreOptions) (desync.Store, e
 	// Get any store options from the config if present and overwrite with settings from
 	// the command line
 	opt := cmdOpt.MergedWith(cfg.GetStoreOptionsFor(location))
+
+	desync.Log.WithFields(logrus.Fields{
+		"location": location,
+		"options":  fmt.Sprintf("%+v", opt),
+	}).Info("store init")
 
 	var s desync.Store
 	switch loc.Scheme {
@@ -229,6 +235,11 @@ func indexStoreFromLocation(location string, cmdOpt cmdStoreOptions) (desync.Ind
 		base = location[:strings.LastIndex(location, "\\")]
 	}
 	opt := cmdOpt.MergedWith(cfg.GetStoreOptionsFor(base))
+
+	desync.Log.WithFields(logrus.Fields{
+		"location": location,
+		"options":  fmt.Sprintf("%+v", opt),
+	}).Info("index-store init")
 
 	var s desync.IndexStore
 	switch loc.Scheme {

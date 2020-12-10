@@ -3,6 +3,8 @@ package desync
 import (
 	"strings"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 var _ Store = &FailoverGroup{}
@@ -25,6 +27,9 @@ func NewFailoverGroup(stores ...Store) *FailoverGroup {
 	if singleMon != nil { // Log to monitor
 		singleMon.SetCurrentStore(stores[0].String(), "SIGHUP reload store conf")
 	}
+	Log.WithFields(logrus.Fields{
+		"store": stores[0].String(),
+	}).Info("NewFailoverGroup init or SIGHUP")
 	return &FailoverGroup{stores: stores}
 }
 
@@ -42,6 +47,7 @@ func (g *FailoverGroup) GetChunk(id ChunkID) (*Chunk, error) {
 			if singleMon != nil { // Log to monitor
 				singleMon.SetCurrentStore("", err.Error())
 			}
+			Log.Error("FailoverGroup.GetChunk fail on the first chunk missing")
 			return b, err
 		}
 
@@ -111,4 +117,8 @@ func (g *FailoverGroup) errorFrom(i int, err error) {
 	if singleMon != nil { // Log to monitor
 		singleMon.SetCurrentStore(g.stores[g.active].String(), err.Error())
 	}
+	Log.WithFields(logrus.Fields{
+		"err":       err,
+		"new store": g.stores[g.active].String(),
+	}).Info("FailoverGroup.error switch store")
 }

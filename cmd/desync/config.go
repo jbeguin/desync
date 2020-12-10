@@ -74,9 +74,15 @@ func (c Config) GetS3CredentialsFor(u *url.URL) (*credentials.Credentials, strin
 func (c Config) GetStoreOptionsFor(location string) desync.StoreOptions {
 	for k, v := range c.StoreOptions {
 		if locationMatch(k, location) {
+			desync.Log.WithFields(logrus.Fields{
+				"location": location,
+			}).Debug("Config found for location")
 			return v
 		}
 	}
+	desync.Log.WithFields(logrus.Fields{
+		"location": location,
+	}).Warn("Config.GetStoreOptionsFor Config not found")
 	return desync.StoreOptions{}
 }
 
