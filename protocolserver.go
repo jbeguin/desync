@@ -61,11 +61,11 @@ func (s *ProtocolServer) Serve(ctx context.Context) error {
 				}
 				return errors.Wrap(err, "unable to read chunk from store")
 			}
-			b, err := chunk.Compressed()
+			b, err := chunk.GetPackagedData(nil, true, false)
 			if err != nil {
 				return err
 			}
-			if err := s.p.SendProtocolChunk(chunk.ID(), CaProtocolChunkCompressed, b); err != nil {
+			if err := s.p.SendProtocolChunk(chunk.ID(nil), CaProtocolChunkCompressed, b); err != nil {
 				return errors.Wrap(err, "failed to send chunk data")
 			}
 		case CaProtocolAbort:

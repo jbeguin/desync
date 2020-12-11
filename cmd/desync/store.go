@@ -109,6 +109,9 @@ func storeFromLocation(location string, cmdOpt cmdStoreOptions) (desync.Store, e
 		"options":  fmt.Sprintf("%+v", opt),
 	}).Info("store init")
 
+	// Get Encryption key if a passphrase is given, nil otherwise
+	opt.EncryptionKey = cfg.GetEncryptionKey()
+
 	var s desync.Store
 	switch loc.Scheme {
 	case "ssh":
@@ -170,7 +173,7 @@ func storeFromLocation(location string, cmdOpt cmdStoreOptions) (desync.Store, e
 		// is only written (and read) once at any given time. Doing so may also
 		// reduce I/O a bit.
 		if runtime.GOOS == "windows" {
-			s = desync.NewWriteDedupQueue(local)
+			s = desync.NewWriteDedupQueue(local, opt.EncryptionKey)
 		}
 	}
 	return s, nil

@@ -16,8 +16,8 @@ func TestProtocol(t *testing.T) {
 	// Test data
 	uncompressed := []byte{0, 0, 1, 1, 2, 2}
 	inChunk := NewChunkFromUncompressed(uncompressed)
-	compressed, _ := inChunk.Compressed()
-	cID := inChunk.ID()
+	compressed, _ := inChunk.GetPackagedData(nil, true, false)
+	cID := inChunk.ID(nil)
 
 	// Server
 	go func() {
@@ -62,7 +62,7 @@ func TestProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := chunk.Uncompressed()
+	b, _ := chunk.GetPackagedData(nil, false, false)
 	if !bytes.Equal(b, uncompressed) {
 		t.Fatal("chunk data doesn't match expected")
 	}

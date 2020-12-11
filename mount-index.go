@@ -29,17 +29,19 @@ type IndexMountFS struct {
 	FName string // File name in the mountpoint
 	Idx   Index  // Index of the blob
 	Store Store
+	key   []byte
 }
 
 var _ fs.NodeOnAdder = &IndexMountFS{}
 var _ MountFS = &IndexMountFS{}
 
 // NewIndexMountFS initializes a FUSE filesystem mount based on an index and a chunk store.
-func NewIndexMountFS(idx Index, name string, s Store) *IndexMountFS {
+func NewIndexMountFS(idx Index, name string, s Store, key []byte) *IndexMountFS {
 	return &IndexMountFS{
 		FName: name,
 		Idx:   idx,
 		Store: s,
+		key:   key,
 	}
 }
 
@@ -48,6 +50,7 @@ func (r *IndexMountFS) OnAdd(ctx context.Context) {
 	n := &indexFile{
 		idx:   r.Idx,
 		store: r.Store,
+		key:   r.key,
 		mtime: time.Now(),
 	}
 	ch := r.NewPersistentInode(ctx, n, fs.StableAttr{Mode: fuse.S_IFREG})
@@ -66,12 +69,13 @@ type indexFile struct {
 
 	idx   Index // Index of the blob
 	store Store
+	key   []byte
 
 	mtime time.Time
 }
 
 func (n *indexFile) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32, syscall.Errno) {
-	fh := newIndexFileHandle(n.idx, n.store)
+	fh := newIndexFileHandle(n.idx, n.store, n.key)
 	return fh, fuse.FOPEN_KEEP_CACHE, fs.OK
 }
 
@@ -96,9 +100,9 @@ type indexFileHandle struct {
 }
 
 // NewIndexMountFile initializes a blob file opened in a FUSE mount.
-func newIndexFileHandle(idx Index, s Store) *indexFileHandle {
+func newIndexFileHandle(idx Index, s Store, key []byte) *indexFileHandle {
 	return &indexFileHandle{
-		r: NewIndexReadSeeker(idx, s),
+		r: NewIndexReadSeeker(idx, s, key),
 	}
 }
 

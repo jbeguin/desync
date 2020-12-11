@@ -114,7 +114,7 @@ func runMountIndex(ctx context.Context, opt mountIndexOptions, args []string) er
 	// Pick a filesystem based on the options
 	var ifs desync.MountFS
 	if opt.corFile != "" {
-		fs, err := desync.NewSparseMountFS(idx, mountFName, s, opt.corFile, opt.SparseFileOptions)
+		fs, err := desync.NewSparseMountFS(idx, mountFName, s, opt.corFile, opt.SparseFileOptions, cfg.GetEncryptionKey())
 		if err != nil {
 			return err
 		}
@@ -130,7 +130,7 @@ func runMountIndex(ctx context.Context, opt mountIndexOptions, args []string) er
 
 		ifs = fs
 	} else {
-		ifs = desync.NewIndexMountFS(idx, mountFName, s)
+		ifs = desync.NewIndexMountFS(idx, mountFName, s, cfg.GetEncryptionKey())
 	}
 
 	// Mount it

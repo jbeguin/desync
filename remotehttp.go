@@ -213,10 +213,7 @@ func (r *RemoteHTTP) GetChunk(id ChunkID) (*Chunk, error) {
 	if err != nil {
 		return nil, err
 	}
-	if r.opt.Uncompressed {
-		return NewChunkWithID(id, b, nil, r.opt.SkipVerify)
-	}
-	return NewChunkWithID(id, nil, b, r.opt.SkipVerify)
+	return NewChunkWithID(id, b, r.opt.EncryptionKey, r.opt.SkipVerify, !r.opt.Uncompressed, r.opt.Encrypted)
 }
 
 // HasChunk returns true if the chunk is in the store
@@ -240,16 +237,12 @@ func (r *RemoteHTTP) HasChunk(id ChunkID) (bool, error) {
 
 // StoreChunk adds a new chunk to the store
 func (r *RemoteHTTP) StoreChunk(chunk *Chunk) error {
-	p := r.nameFromID(chunk.ID())
+	p := r.nameFromID(chunk.ID(r.opt.EncryptionKey))
 	var (
 		b   []byte
 		err error
 	)
-	if r.opt.Uncompressed {
-		b, err = chunk.Uncompressed()
-	} else {
-		b, err = chunk.Compressed()
-	}
+	b, err = chunk.GetPackagedData(r.opt.EncryptionKey, !r.opt.Uncompressed, r.opt.Encrypted)
 	if err != nil {
 		return err
 	}
@@ -263,6 +256,9 @@ func (r *RemoteHTTP) nameFromID(id ChunkID) string {
 		name += UncompressedChunkExt
 	} else {
 		name += CompressedChunkExt
+	}
+	if r.opt.Encrypted {
+		name += EncryptChunkExt
 	}
 	return name
 }

@@ -89,7 +89,7 @@ func runCat(ctx context.Context, opt catOptions, args []string) error {
 	}
 
 	// Write the output
-	readSeeker := desync.NewIndexReadSeeker(c, s)
+	readSeeker := desync.NewIndexReadSeeker(c, s, cfg.GetEncryptionKey())
 	if _, err = readSeeker.Seek(int64(opt.offset), io.SeekStart); err != nil {
 		return err
 	}

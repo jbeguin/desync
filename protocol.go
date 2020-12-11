@@ -154,7 +154,7 @@ func (p *Protocol) RequestChunk(id ChunkID) (*Chunk, error) {
 			return nil, errors.New("received chunk too small")
 		}
 		// The rest should be the chunk data
-		return NewChunkWithID(id, nil, m.Body[40:], false)
+		return NewChunkWithID(id, m.Body[40:], nil, false, true, false)
 	default:
 		return nil, fmt.Errorf("unexpected protocol message type %x", m.Type)
 	}

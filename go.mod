@@ -10,6 +10,7 @@ require (
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/folbricht/tempfile v0.0.1
 	github.com/go-ini/ini v1.57.0
+	github.com/google/martian v2.1.0+incompatible
 	github.com/hanwen/go-fuse/v2 v2.0.3
 	github.com/klauspost/compress v1.10.10
 	github.com/mattn/go-colorable v0.0.9 // indirect

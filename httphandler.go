@@ -8,7 +8,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -18,12 +17,14 @@ type HTTPHandler struct {
 	s               Store
 	SkipVerifyWrite bool
 	Uncompressed    bool
+	encrypted       bool
+	key             []byte
 }
 
 // NewHTTPHandler initializes and returns a new HTTP handler for a chunks erver.
-func NewHTTPHandler(s Store, writable, skipVerifyWrite, uncompressed bool, auth string) http.Handler {
+func NewHTTPHandler(s Store, writable, skipVerifyWrite, uncompressed, encrypted bool, key []byte, auth string) http.Handler {
 	Log.Info("NewHTTPHandler init")
-	return HTTPHandler{HTTPHandlerBase{"chunk", writable, auth}, s, skipVerifyWrite, uncompressed}
+	return HTTPHandler{HTTPHandlerBase{"chunk", writable, auth}, s, skipVerifyWrite, uncompressed, encrypted, key}
 }
 
 func (h HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -59,11 +60,7 @@ func (h HTTPHandler) get(id ChunkID, w http.ResponseWriter) {
 	var b []byte
 	chunk, err := h.s.GetChunk(id)
 	if err == nil {
-		if h.Uncompressed {
-			b, err = chunk.Uncompressed()
-		} else {
-			b, err = chunk.Compressed()
-		}
+		b, err = chunk.GetPackagedData(h.key, !h.Uncompressed, h.encrypted)
 	}
 	h.HTTPHandlerBase.get(id.String(), b, err, w)
 }
@@ -105,11 +102,7 @@ func (h HTTPHandler) put(id ChunkID, w http.ResponseWriter, r *http.Request) {
 
 	// Turn it into a chunk, and validate the ID unless verification is disabled
 	var chunk *Chunk
-	if h.Uncompressed {
-		chunk, err = NewChunkWithID(id, b.Bytes(), nil, h.SkipVerifyWrite)
-	} else {
-		chunk, err = NewChunkWithID(id, nil, b.Bytes(), h.SkipVerifyWrite)
-	}
+	chunk, err = NewChunkWithID(id, b.Bytes(), h.key, h.SkipVerifyWrite, !h.Uncompressed, h.encrypted)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -125,13 +118,32 @@ func (h HTTPHandler) put(id ChunkID, w http.ResponseWriter, r *http.Request) {
 
 func (h HTTPHandler) idFromPath(p string) (ChunkID, error) {
 	ext := CompressedChunkExt
-	if h.Uncompressed {
-		if strings.HasSuffix(p, CompressedChunkExt) {
-			return ChunkID{}, errors.New("compressed chunk requested from http chunk store serving uncompressed chunks")
+	var sID string
+	if !h.encrypted {
+		sID = path.Base(p)
+	} else {
+		if !strings.HasSuffix(path.Base(p), EncryptChunkExt) {
+			return ChunkID{}, fmt.Errorf("object %s is not a chunk", path.Base(p))
 		}
-		ext = UncompressedChunkExt
+		sID = strings.TrimSuffix(path.Base(p), EncryptChunkExt)
 	}
-	sID := strings.TrimSuffix(path.Base(p), ext)
+	if h.Uncompressed {
+		if !strings.HasSuffix(sID, UncompressedChunkExt) {
+			return ChunkID{}, fmt.Errorf("object %s is not a chunk", path.Base(p))
+		}
+		sID = strings.TrimSuffix(sID, UncompressedChunkExt)
+		ext = UncompressedChunkExt
+	} else {
+		if !strings.HasSuffix(sID, CompressedChunkExt) {
+			return ChunkID{}, fmt.Errorf("object %s is not a chunk", path.Base(p))
+		}
+		sID = strings.TrimSuffix(sID, CompressedChunkExt)
+		ext = CompressedChunkExt
+	}
+	if h.encrypted {
+		ext += EncryptChunkExt
+	}
+
 	if len(sID) < 4 {
 		return ChunkID{}, fmt.Errorf("expected format '/<prefix>/<chunkid>%s", ext)
 	}

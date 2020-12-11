@@ -10,17 +10,19 @@ var _ WriteStore = &WriteDedupQueue{}
 // (Windows). With the DedupQueue wrapper, concurrent requests for the same chunk will result in just
 // one request to the upstream store. Implements the WriteStore interface.
 type WriteDedupQueue struct {
-	S WriteStore
+	S   WriteStore
+	key []byte
 	*DedupQueue
 	storeChunkQueue *queue
 }
 
 // NewWriteDedupQueue initializes a new instance of the wrapper.
-func NewWriteDedupQueue(store WriteStore) *WriteDedupQueue {
+func NewWriteDedupQueue(store WriteStore, key []byte) *WriteDedupQueue {
 	return &WriteDedupQueue{
 		S:               store,
 		DedupQueue:      NewDedupQueue(store),
 		storeChunkQueue: newQueue(),
+		key:             key,
 	}
 }
 
@@ -51,7 +53,7 @@ func (q *WriteDedupQueue) HasChunk(id ChunkID) (bool, error) {
 }
 
 func (q *WriteDedupQueue) StoreChunk(chunk *Chunk) error {
-	id := chunk.ID()
+	id := chunk.ID(q.key)
 	req, isInFlight := q.storeChunkQueue.loadOrStore(id)
 
 	if isInFlight { // The request is already in-flight, wait for it to come back

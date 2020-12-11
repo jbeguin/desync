@@ -140,7 +140,7 @@ func writeInplace(ctx context.Context, name string, idx desync.Index, s desync.S
 	pb := NewProgressBar("")
 
 	// Build the blob from the chunks, writing everything into given filename
-	return desync.AssembleFile(ctx, name, idx, s, seeds, n, pb)
+	return desync.AssembleFile(ctx, name, idx, s, seeds, cfg.GetEncryptionKey(), n, pb)
 }
 
 func readSeeds(dstFile string, locations []string, opts cmdStoreOptions) ([]desync.Seed, error) {

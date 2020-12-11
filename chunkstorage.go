@@ -46,12 +46,12 @@ func (s *ChunkStorage) StoreChunk(chunk *Chunk) (err error) {
 	// Mark this chunk as done so no other goroutine will attempt to store it
 	// at the same time. If this is the first time this chunk is marked, it'll
 	// return false and we need to continue processing/storing the chunk below.
-	if s.markProcessed(chunk.ID()) {
+	if s.markProcessed(chunk.ID(nil)) {
 		return nil
 	}
 
 	// Skip this chunk if the store already has it
-	if hasChunk, err := s.ws.HasChunk(chunk.ID()); err != nil || hasChunk {
+	if hasChunk, err := s.ws.HasChunk(chunk.ID(nil)); err != nil || hasChunk {
 		return err
 	}
 
@@ -59,7 +59,7 @@ func (s *ChunkStorage) StoreChunk(chunk *Chunk) (err error) {
 	// store it, we need to unmark it again.
 	defer func() {
 		if err != nil {
-			s.unmarkProcessed(chunk.ID())
+			s.unmarkProcessed(chunk.ID(nil))
 		}
 	}()
 

@@ -56,7 +56,7 @@ func TestMountIndex(t *testing.T) {
 
 	// Start the Fuse mount
 	go func() {
-		ifs := NewIndexMountFS(index, "blob1", s)
+		ifs := NewIndexMountFS(index, "blob1", s, nil)
 		MountIndex(ctx, index, ifs, mnt, s, 10)
 		wg.Done()
 	}()

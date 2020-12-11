@@ -16,7 +16,7 @@ import (
 // confirm if the data matches what is expected and only populate areas that
 // differ from the expected content. This can be used to complete partly
 // written files.
-func AssembleFile(ctx context.Context, name string, idx Index, s Store, seeds []Seed, n int, pb ProgressBar) (*ExtractStats, error) {
+func AssembleFile(ctx context.Context, name string, idx Index, s Store, seeds []Seed, key []byte, n int, pb ProgressBar) (*ExtractStats, error) {
 	type Job struct {
 		segment IndexSegment
 		source  SeedSegment
@@ -143,7 +143,7 @@ func AssembleFile(ctx context.Context, name string, idx Index, s Store, seeds []
 				if err != nil {
 					return err
 				}
-				b, err := chunk.Uncompressed()
+				b, err := chunk.GetPackagedData(key, false, false)
 				if err != nil {
 					return err
 				}

@@ -34,6 +34,7 @@ type S3Creds struct {
 type Config struct {
 	HTTPTimeout    time.Duration                  `json:"http-timeout,omitempty"`
 	HTTPErrorRetry int                            `json:"http-error-retry,omitempty"`
+	Passphrase     string                         `json:"passphrase,omitempty"`
 	S3Credentials  map[string]S3Creds             `json:"s3-credentials"`
 	StoreOptions   map[string]desync.StoreOptions `json:"store-options"`
 }
@@ -67,6 +68,11 @@ func (c Config) GetS3CredentialsFor(u *url.URL) (*credentials.Credentials, strin
 		creds = NewRefreshableSharedCredentials(credsConfig.AwsCredentialsFile, credsConfig.AwsProfile, time.Now)
 	}
 	return creds, region
+}
+
+// Return chunk encryption key for the given passphrase
+func (c Config) GetEncryptionKey() []byte {
+	return desync.CreateHash(c.Passphrase)
 }
 
 // GetStoreOptionsFor returns optional config options for a specific store. Note that

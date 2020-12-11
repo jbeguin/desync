@@ -125,5 +125,5 @@ func runUntar(ctx context.Context, opt untarOptions, args []string) error {
 		return err
 	}
 
-	return desync.UnTarIndex(ctx, fs, index, s, opt.n, NewProgressBar("Unpacking "))
+	return desync.UnTarIndex(ctx, fs, index, s, cfg.GetEncryptionKey(), opt.n, NewProgressBar("Unpacking "))
 }

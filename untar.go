@@ -50,7 +50,7 @@ loop:
 // UnTarIndex takes an index file (of a chunked catar), re-assembles the catar
 // and decodes it on-the-fly into the target directory 'dst'. Uses n gorountines
 // to retrieve and decompress the chunks.
-func UnTarIndex(ctx context.Context, fs FilesystemWriter, index Index, s Store, n int, pb ProgressBar) error {
+func UnTarIndex(ctx context.Context, fs FilesystemWriter, index Index, s Store, key []byte, n int, pb ProgressBar) error {
 	type requestJob struct {
 		chunk IndexChunk    // requested chunk
 		data  chan ([]byte) // channel for the (decompressed) chunk
@@ -82,7 +82,7 @@ func UnTarIndex(ctx context.Context, fs FilesystemWriter, index Index, s Store, 
 					close(r.data)
 					return err
 				}
-				b, err := chunk.Uncompressed()
+				b, err := chunk.GetPackagedData(key, true, false)
 				if err != nil {
 					close(r.data)
 					return err

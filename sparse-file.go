@@ -49,13 +49,13 @@ type SparseFileHandle struct {
 	file *os.File
 }
 
-func NewSparseFile(name string, idx Index, s Store, opt SparseFileOptions) (*SparseFile, error) {
+func NewSparseFile(name string, idx Index, s Store, opt SparseFileOptions, key []byte) (*SparseFile, error) {
 	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE, 0755)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	loader := newSparseFileLoader(name, idx, s)
+	loader := newSparseFileLoader(name, idx, s, key)
 	sf := &SparseFile{
 		name:   name,
 		idx:    idx,
@@ -164,12 +164,13 @@ type sparseFileLoader struct {
 	mu   sync.RWMutex
 	mupb sync.RWMutex
 	s    Store
+	key  []byte
 
 	nullChunk *NullChunk
 	chunks    []*sparseIndexChunk
 }
 
-func newSparseFileLoader(name string, idx Index, s Store) *sparseFileLoader {
+func newSparseFileLoader(name string, idx Index, s Store, key []byte) *sparseFileLoader {
 	chunks := make([]*sparseIndexChunk, 0, len(idx.Chunks))
 	for _, c := range idx.Chunks {
 		chunks = append(chunks, &sparseIndexChunk{IndexChunk: c})
@@ -180,6 +181,7 @@ func newSparseFileLoader(name string, idx Index, s Store) *sparseFileLoader {
 		done:      bitmap.New(len(idx.Chunks)),
 		chunks:    chunks,
 		s:         s,
+		key:       key,
 		nullChunk: NewNullChunk(idx.Index.ChunkSizeMax),
 	}
 }
@@ -242,7 +244,7 @@ func (l *sparseFileLoader) loadChunk(i int) error {
 			loadErr = err
 			return
 		}
-		b, err := c.Uncompressed()
+		b, err := c.GetPackagedData(l.key, false, false)
 		if err != nil {
 			loadErr = err
 			return

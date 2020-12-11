@@ -12,6 +12,7 @@ import (
 // IndexPos represents a position inside an index file, to permit a seeking reader
 type IndexPos struct {
 	Store  Store
+	key    []byte
 	Index  Index
 	Length int64 // total length of file
 	pos    int64 // Location within offset stream; must be 0 <= Pos <= Index.
@@ -24,9 +25,10 @@ type IndexPos struct {
 }
 
 // NewIndexReadSeeker initializes a ReadSeeker for indexes.
-func NewIndexReadSeeker(i Index, s Store) *IndexPos {
+func NewIndexReadSeeker(i Index, s Store, key []byte) *IndexPos {
 	return &IndexPos{
 		Store:      s,
+		key:        key,
 		Index:      i,
 		Length:     i.Length(),
 		curChunkID: i.Chunks[0].ID,
@@ -100,7 +102,7 @@ func (ip *IndexPos) loadChunk() error {
 	if err != nil {
 		return err
 	}
-	b, err := chunk.Uncompressed()
+	b, err := chunk.GetPackagedData(ip.key, false, false)
 	if err != nil {
 		return err
 	}

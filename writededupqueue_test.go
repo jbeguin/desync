@@ -18,11 +18,11 @@ func TestWriteDedupQueueParallelReadWrite(t *testing.T) {
 			return nil, ChunkMissing{id}
 		},
 	}
-	q := NewWriteDedupQueue(store)
+	q := NewWriteDedupQueue(store, nil)
 
 	// Queue us a slow HasChunk() operation, then perform a StoreChunk(). The store
 	// operation should not be impacted by the ongoing read
-	go q.GetChunk(c.ID())
+	go q.GetChunk(c.ID(nil))
 	<-sleeping
 
 	if err := q.StoreChunk(c); err != nil {

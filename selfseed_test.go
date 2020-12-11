@@ -38,7 +38,7 @@ func TestSelfSeed(t *testing.T) {
 		if err = s.StoreChunk(chunk); err != nil {
 			t.Fatal(err)
 		}
-		chunks[i] = rawChunk{chunk.ID(), b}
+		chunks[i] = rawChunk{chunk.ID(nil), b}
 	}
 
 	// Define tests with files with different content, by building files out
@@ -110,7 +110,7 @@ func TestSelfSeed(t *testing.T) {
 			defer dst.Close()
 
 			// Extract the file
-			stats, err := AssembleFile(context.Background(), dst.Name(), idx, s, nil, 1, nil)
+			stats, err := AssembleFile(context.Background(), dst.Name(), idx, s, nil, nil, 1, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -86,4 +86,10 @@ type StoreOptions struct {
 
 	// Store and read chunks uncompressed, without chunk file extension
 	Uncompressed bool `json:"uncompressed"`
+
+	// Store and serve chunks encrypted
+	Encrypted bool `json:"encrypted"`
+
+	// Key for upstream source store(s) or destination store.
+	EncryptionKey []byte `json:"encryption-key"`
 }

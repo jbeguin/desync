@@ -143,3 +143,6 @@ const CompressedChunkExt = ".cacnk"
 
 // UncompressedChunkExt is the file extension of uncompressed chunks
 const UncompressedChunkExt = ""
+
+// EncryptChunkExt is the file extension of uncompressed chunks
+const EncryptChunkExt = ".crypt"

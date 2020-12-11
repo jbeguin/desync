@@ -25,7 +25,7 @@ func TestLocalStoreCompressed(t *testing.T) {
 	dataIn := []byte("some data")
 
 	chunkIn := NewChunkFromUncompressed(dataIn)
-	id := chunkIn.ID()
+	id := chunkIn.ID(nil)
 	if err := s.StoreChunk(chunkIn); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestLocalStoreCompressed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dataOut, err := chunkOut.Uncompressed()
+	dataOut, err := chunkOut.GetPackagedData(nil, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestLocalStoreUncompressed(t *testing.T) {
 	dataIn := []byte("some data")
 
 	chunkIn := NewChunkFromUncompressed(dataIn)
-	id := chunkIn.ID()
+	id := chunkIn.ID(nil)
 	if err := s.StoreChunk(chunkIn); err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestLocalStoreUncompressed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dataOut, err := chunkOut.Uncompressed()
+	dataOut, err := chunkOut.GetPackagedData(nil, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestLocalStoreErrorHandling(t *testing.T) {
 	dataIn := []byte("some data")
 
 	chunkIn := NewChunkFromUncompressed(dataIn)
-	id := chunkIn.ID()
+	id := chunkIn.ID(nil)
 	if err := s.StoreChunk(chunkIn); err != nil {
 		t.Fatal(err)
 	}

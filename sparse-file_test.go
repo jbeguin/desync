@@ -20,7 +20,7 @@ func TestLoaderChunkRange(t *testing.T) {
 		},
 	}
 
-	loader := newSparseFileLoader("", idx, nil)
+	loader := newSparseFileLoader("", idx, nil, nil)
 
 	tests := []struct {
 		// Input ranges
@@ -73,12 +73,11 @@ func TestSparseFileRead(t *testing.T) {
 	require.NoError(t, err)
 
 	// Initialize the sparse file and open a handle
-	sparse, err := NewSparseFile(sparseFile.Name(), index, s, SparseFileOptions{})
+	sparse, err := NewSparseFile(sparseFile.Name(), index, s, SparseFileOptions{}, nil)
 	require.NoError(t, err)
 	h, err := sparse.Open()
 	require.NoError(t, err)
 	defer h.Close()
-
 	// Read a few randome ranges and compare to the expected blob content
 	for i := 0; i < 10; i++ {
 		start := rand.Intn(int(index.Length()))

@@ -108,25 +108,18 @@ func (s S3Store) GetChunk(id ChunkID) (*Chunk, error) {
 	if err != nil {
 		return nil, err
 	}
-	if s.opt.Uncompressed {
-		return NewChunkWithID(id, b, nil, s.opt.SkipVerify)
-	}
-	return NewChunkWithID(id, nil, b, s.opt.SkipVerify)
+	return NewChunkWithID(id, b, s.opt.EncryptionKey, s.opt.SkipVerify, !s.opt.Uncompressed, s.opt.Encrypted)
 }
 
 // StoreChunk adds a new chunk to the store
 func (s S3Store) StoreChunk(chunk *Chunk) error {
 	contentType := "application/zstd"
-	name := s.nameFromID(chunk.ID())
+	name := s.nameFromID(chunk.ID(s.opt.EncryptionKey))
 	var (
 		b   []byte
 		err error
 	)
-	if s.opt.Uncompressed {
-		b, err = chunk.Uncompressed()
-	} else {
-		b, err = chunk.Compressed()
-	}
+	chunk.GetPackagedData(s.opt.EncryptionKey, !s.opt.Uncompressed, s.opt.Encrypted)
 	if err != nil {
 		return err
 	}
@@ -186,6 +179,9 @@ func (s S3Store) nameFromID(id ChunkID) string {
 		name += UncompressedChunkExt
 	} else {
 		name += CompressedChunkExt
+	}
+	if s.opt.Encrypted {
+		name += EncryptChunkExt
 	}
 	return name
 }

@@ -16,8 +16,8 @@ func TestProtocolServer(t *testing.T) {
 	// Test data
 	uncompressed := []byte{4, 3, 2, 1}
 	chunkIn := NewChunkFromUncompressed(uncompressed)
-	compressed, _ := chunkIn.Compressed()
-	id := chunkIn.ID()
+	compressed, _ := chunkIn.GetPackagedData(nil, true, false)
+	id := chunkIn.ID(nil)
 	store := &TestStore{
 		Chunks: map[ChunkID][]byte{
 			id: compressed,
@@ -35,17 +35,15 @@ func TestProtocolServer(t *testing.T) {
 	if flags&CaProtocolReadableStore == 0 {
 		t.Fatalf("server not offering chunks")
 	}
-
 	// Should find this chunk
 	chunk, err := server.RequestChunk(id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := chunk.Uncompressed()
+	b, _ := chunk.GetPackagedData(nil, false, false)
 	if !bytes.Equal(b, uncompressed) {
 		t.Fatal("chunk data doesn't match expected")
 	}
-
 	// This one's missing
 	_, err = server.RequestChunk(ChunkID{0})
 	if _, ok := err.(ChunkMissing); !ok {

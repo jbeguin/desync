@@ -125,10 +125,7 @@ func (s GCStore) GetChunk(id ChunkID) (*Chunk, error) {
 
 	log.Debug("Retrieved chunk from GCS bucket")
 
-	if s.opt.Uncompressed {
-		return NewChunkWithID(id, b, nil, s.opt.SkipVerify)
-	}
-	return NewChunkWithID(id, nil, b, s.opt.SkipVerify)
+	return NewChunkWithID(id, b, s.opt.EncryptionKey, s.opt.SkipVerify, !s.opt.Uncompressed, s.opt.Encrypted)
 }
 
 // StoreChunk adds a new chunk to the store
@@ -136,7 +133,7 @@ func (s GCStore) StoreChunk(chunk *Chunk) error {
 
 	ctx := context.TODO()
 	contentType := "application/zstd"
-	name := s.nameFromID(chunk.ID())
+	name := s.nameFromID(chunk.ID(s.opt.EncryptionKey))
 
 	var (
 		b   []byte
@@ -147,11 +144,7 @@ func (s GCStore) StoreChunk(chunk *Chunk) error {
 		})
 	)
 
-	if s.opt.Uncompressed {
-		b, err = chunk.Uncompressed()
-	} else {
-		b, err = chunk.Compressed()
-	}
+	b, err = chunk.GetPackagedData(s.opt.EncryptionKey, !s.opt.Uncompressed, s.opt.Encrypted)
 
 	if err != nil {
 		log.WithError(err).Error("Cannot retrieve chunk data")
@@ -265,21 +258,32 @@ func (s GCStore) nameFromID(id ChunkID) string {
 	} else {
 		name += CompressedChunkExt
 	}
+	if s.opt.Encrypted {
+		name += EncryptChunkExt
+	}
 	return name
 }
 
 func (s GCStore) idFromName(name string) (ChunkID, error) {
 	var n string
-	if s.opt.Uncompressed {
-		if !strings.HasSuffix(name, UncompressedChunkExt) {
-			return ChunkID{}, fmt.Errorf("object %s is not a chunk", name)
-		}
-		n = strings.TrimSuffix(strings.TrimPrefix(name, s.prefix), UncompressedChunkExt)
+	if !s.opt.Encrypted {
+		n = name
 	} else {
-		if !strings.HasSuffix(name, CompressedChunkExt) {
+		if !strings.HasSuffix(name, EncryptChunkExt) {
 			return ChunkID{}, fmt.Errorf("object %s is not a chunk", name)
 		}
-		n = strings.TrimSuffix(strings.TrimPrefix(name, s.prefix), CompressedChunkExt)
+		n = strings.TrimSuffix(name, EncryptChunkExt)
+	}
+	if s.opt.Uncompressed {
+		if !strings.HasSuffix(n, UncompressedChunkExt) {
+			return ChunkID{}, fmt.Errorf("object %s is not a chunk", name)
+		}
+		n = strings.TrimSuffix(strings.TrimPrefix(n, s.prefix), UncompressedChunkExt)
+	} else {
+		if !strings.HasSuffix(n, CompressedChunkExt) {
+			return ChunkID{}, fmt.Errorf("object %s is not a chunk", name)
+		}
+		n = strings.TrimSuffix(strings.TrimPrefix(n, s.prefix), CompressedChunkExt)
 	}
 	fragments := strings.Split(n, "/")
 	if len(fragments) != 2 {

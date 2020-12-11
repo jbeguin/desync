@@ -81,5 +81,5 @@ func runMtree(ctx context.Context, opt mtreeOptions, args []string) error {
 		return err
 	}
 
-	return desync.UnTarIndex(ctx, fs, index, s, opt.n, nil)
+	return desync.UnTarIndex(ctx, fs, index, s, cfg.GetEncryptionKey(), opt.n, nil)
 }

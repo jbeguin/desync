@@ -167,7 +167,7 @@ func ChunkStream(ctx context.Context, c Chunker, ws WriteStore, n int) (Index, e
 				chunk := NewChunkFromUncompressed(c.b)
 
 				// Record the index row
-				idxChunk := IndexChunk{Start: c.start, Size: uint64(len(c.b)), ID: chunk.ID()}
+				idxChunk := IndexChunk{Start: c.start, Size: uint64(len(c.b)), ID: chunk.ID(nil)}
 				recordResult(c.num, idxChunk)
 
 				if err := s.StoreChunk(chunk); err != nil {

@@ -35,6 +35,7 @@ type SFTPStore struct {
 	pool     chan *SFTPStoreBase
 	location *url.URL
 	n        int
+	opt      StoreOptions
 }
 
 // Creates a base sftp client
@@ -142,7 +143,7 @@ func (s *SFTPStoreBase) nameFromID(id ChunkID) string {
 
 // NewSFTPStore initializes a chunk store using SFTP over SSH.
 func NewSFTPStore(location *url.URL, opt StoreOptions) (*SFTPStore, error) {
-	s := &SFTPStore{make(chan *SFTPStoreBase, opt.N), location, opt.N}
+	s := &SFTPStore{make(chan *SFTPStoreBase, opt.N), location, opt.N, opt}
 	for i := 0; i < opt.N; i++ {
 		c, err := newSFTPStoreBase(location, opt)
 		if err != nil {
@@ -170,10 +171,7 @@ func (s *SFTPStore) GetChunk(id ChunkID) (*Chunk, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to read from %s", name)
 	}
-	if c.opt.Uncompressed {
-		return NewChunkWithID(id, b, nil, c.opt.SkipVerify)
-	}
-	return NewChunkWithID(id, nil, b, c.opt.SkipVerify)
+	return NewChunkWithID(id, b, s.opt.EncryptionKey, s.opt.SkipVerify, !s.opt.Uncompressed, s.opt.Encrypted)
 }
 
 // RemoveChunk deletes a chunk, typically an invalid one, from the filesystem.
@@ -192,16 +190,12 @@ func (s *SFTPStore) RemoveChunk(id ChunkID) error {
 func (s *SFTPStore) StoreChunk(chunk *Chunk) error {
 	c := <-s.pool
 	defer func() { s.pool <- c }()
-	name := c.nameFromID(chunk.ID())
+	name := c.nameFromID(chunk.ID(s.opt.EncryptionKey))
 	var (
 		b   []byte
 		err error
 	)
-	if c.opt.Uncompressed {
-		b, err = chunk.Uncompressed()
-	} else {
-		b, err = chunk.Compressed()
-	}
+	b, err = chunk.GetPackagedData(s.opt.EncryptionKey, !s.opt.Uncompressed, s.opt.Encrypted)
 	if err != nil {
 		return err
 	}
@@ -244,16 +238,24 @@ func (s *SFTPStore) Prune(ctx context.Context, ids map[ChunkID]struct{}) error {
 		}
 		// Skip compressed chunks if this is running in uncompressed mode and vice-versa
 		var sID string
-		if c.opt.Uncompressed {
-			if !strings.HasSuffix(path, UncompressedChunkExt) {
+		if !s.opt.Encrypted {
+			sID = filepath.Base(path)
+		} else {
+			if !strings.HasSuffix(path, EncryptChunkExt) {
 				return nil
 			}
 			sID = strings.TrimSuffix(filepath.Base(path), UncompressedChunkExt)
-		} else {
-			if !strings.HasSuffix(path, CompressedChunkExt) {
+		}
+		if s.opt.Uncompressed {
+			if !strings.HasSuffix(sID, UncompressedChunkExt) {
 				return nil
 			}
-			sID = strings.TrimSuffix(filepath.Base(path), CompressedChunkExt)
+			sID = strings.TrimSuffix(sID, UncompressedChunkExt)
+		} else {
+			if !strings.HasSuffix(sID, CompressedChunkExt) {
+				return nil
+			}
+			sID = strings.TrimSuffix(sID, CompressedChunkExt)
 		}
 		// Convert the name into a checksum, if that fails we're probably not looking
 		// at a chunk file and should skip it.

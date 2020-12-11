@@ -49,10 +49,7 @@ func (s LocalStore) GetChunk(id ChunkID) (*Chunk, error) {
 	if os.IsNotExist(err) {
 		return nil, ChunkMissing{id}
 	}
-	if s.opt.Uncompressed {
-		return NewChunkWithID(id, b, nil, s.opt.SkipVerify)
-	}
-	return NewChunkWithID(id, nil, b, s.opt.SkipVerify)
+	return NewChunkWithID(id, b, s.opt.EncryptionKey, s.opt.SkipVerify, !s.opt.Uncompressed, s.opt.Encrypted)
 }
 
 // RemoveChunk deletes a chunk, typically an invalid one, from the filesystem.
@@ -67,16 +64,12 @@ func (s LocalStore) RemoveChunk(id ChunkID) error {
 
 // StoreChunk adds a new chunk to the store
 func (s LocalStore) StoreChunk(chunk *Chunk) error {
-	d, p := s.nameFromID(chunk.ID())
+	d, p := s.nameFromID(chunk.ID(s.opt.EncryptionKey))
 	var (
 		b   []byte
 		err error
 	)
-	if s.opt.Uncompressed {
-		b, err = chunk.Uncompressed()
-	} else {
-		b, err = chunk.Compressed()
-	}
+	b, err = chunk.GetPackagedData(s.opt.EncryptionKey, !s.opt.Uncompressed, s.opt.Encrypted)
 	if err != nil {
 		return err
 	}
@@ -146,16 +139,24 @@ func (s LocalStore) Verify(ctx context.Context, n int, repair bool, w io.Writer)
 		}
 		// Skip compressed chunks if this is running in uncompressed mode and vice-versa
 		var sID string
-		if s.opt.Uncompressed {
-			if !strings.HasSuffix(path, UncompressedChunkExt) {
-				return nil
-			}
-			sID = strings.TrimSuffix(filepath.Base(path), UncompressedChunkExt)
+		if !s.opt.Encrypted {
+			sID = filepath.Base(path)
 		} else {
-			if !strings.HasSuffix(path, CompressedChunkExt) {
+			if !strings.HasSuffix(path, EncryptChunkExt) {
 				return nil
 			}
-			sID = strings.TrimSuffix(filepath.Base(path), CompressedChunkExt)
+			sID = strings.TrimSuffix(filepath.Base(path), EncryptChunkExt)
+		}
+		if s.opt.Uncompressed {
+			if !strings.HasSuffix(sID, UncompressedChunkExt) {
+				return nil
+			}
+			sID = strings.TrimSuffix(sID, UncompressedChunkExt)
+		} else {
+			if !strings.HasSuffix(sID, CompressedChunkExt) {
+				return nil
+			}
+			sID = strings.TrimSuffix(sID, CompressedChunkExt)
 		}
 		// Convert the name into a checksum, if that fails we're probably not looking
 		// at a chunk file and should skip it.
@@ -191,16 +192,24 @@ func (s LocalStore) Prune(ctx context.Context, ids map[ChunkID]struct{}) error {
 		}
 		// Skip compressed chunks if this is running in uncompressed mode and vice-versa
 		var sID string
-		if s.opt.Uncompressed {
-			if !strings.HasSuffix(path, UncompressedChunkExt) {
-				return nil
-			}
-			sID = strings.TrimSuffix(filepath.Base(path), UncompressedChunkExt)
+		if !s.opt.Encrypted {
+			sID = filepath.Base(path)
 		} else {
-			if !strings.HasSuffix(path, CompressedChunkExt) {
+			if !strings.HasSuffix(path, EncryptChunkExt) {
 				return nil
 			}
-			sID = strings.TrimSuffix(filepath.Base(path), CompressedChunkExt)
+			sID = strings.TrimSuffix(filepath.Base(path), EncryptChunkExt)
+		}
+		if s.opt.Uncompressed {
+			if !strings.HasSuffix(sID, UncompressedChunkExt) {
+				return nil
+			}
+			sID = strings.TrimSuffix(sID, UncompressedChunkExt)
+		} else {
+			if !strings.HasSuffix(sID, CompressedChunkExt) {
+				return nil
+			}
+			sID = strings.TrimSuffix(sID, CompressedChunkExt)
 		}
 		// Convert the name into a checksum, if that fails we're probably not looking
 		// at a chunk file and should skip it.
@@ -248,6 +257,9 @@ func (s LocalStore) nameFromID(id ChunkID) (dir, name string) {
 		name += UncompressedChunkExt
 	} else {
 		name += CompressedChunkExt
+	}
+	if s.opt.Encrypted {
+		name += EncryptChunkExt
 	}
 	return
 }

@@ -23,6 +23,7 @@ type chunkServerOptions struct {
 	writable        bool
 	skipVerifyWrite bool
 	uncompressed    bool
+	encrypted       bool
 	logFile         string
 }
 
@@ -67,6 +68,7 @@ needing to restart the server. This can be done under load as well.
 	flags.BoolVar(&opt.skipVerify, "skip-verify-read", true, "don't verify chunk data read from upstream stores (faster)")
 	flags.BoolVar(&opt.skipVerifyWrite, "skip-verify-write", true, "don't verify chunk data written to this server (faster)")
 	flags.BoolVarP(&opt.uncompressed, "uncompressed", "u", false, "serve uncompressed chunks")
+	flags.BoolVarP(&opt.encrypted, "encrypted", "e", false, "serve encrypted chunks")
 	flags.StringVar(&opt.logFile, "log", "", "request log file or - for STDOUT")
 	addStoreOptions(&opt.cmdStoreOptions, flags)
 	addServerOptions(&opt.cmdServerOptions, flags)
@@ -127,7 +129,7 @@ func runChunkServer(ctx context.Context, opt chunkServerOptions, args []string) 
 	}
 	defer s.Close()
 
-	handler := desync.NewHTTPHandler(s, opt.writable, opt.skipVerifyWrite, opt.uncompressed, opt.auth)
+	handler := desync.NewHTTPHandler(s, opt.writable, opt.skipVerifyWrite, opt.uncompressed, opt.encrypted, cfg.GetEncryptionKey(), opt.auth)
 
 	// Wrap the handler in a logger if requested
 	switch opt.logFile {

@@ -26,8 +26,8 @@ var _ fs.NodeOnAdder = &SparseMountFS{}
 var _ MountFS = &SparseMountFS{}
 
 // NewSparseMountFS initializes a FUSE filesystem mount based on an index, a sparse file and a chunk store.
-func NewSparseMountFS(idx Index, name string, s Store, sparseFile string, opt SparseFileOptions) (*SparseMountFS, error) {
-	sf, err := NewSparseFile(sparseFile, idx, s, opt)
+func NewSparseMountFS(idx Index, name string, s Store, sparseFile string, opt SparseFileOptions, key []byte) (*SparseMountFS, error) {
+	sf, err := NewSparseFile(sparseFile, idx, s, opt, key)
 	if err != nil {
 		return nil, err
 	}
