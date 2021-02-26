@@ -58,8 +58,9 @@ func (r *SparseMountFS) Close() error {
 	return r.sf.WriteState()
 }
 
-var _ fs.NodeGetattrer = &indexFile{}
-var _ fs.NodeOpener = &indexFile{}
+var _ fs.NodeSetattrer = &sparseIndexFile{}
+var _ fs.NodeGetattrer = &sparseIndexFile{}
+var _ fs.NodeOpener = &sparseIndexFile{}
 
 type sparseIndexFile struct {
 	fs.Inode
@@ -84,14 +85,30 @@ func (n *sparseIndexFile) Read(ctx context.Context, fh fs.FileHandle, dest []byt
 		if err == io.EOF {
 			return fuse.ReadResultData(dest[:length]), fs.OK
 		}
-		Log.WithError(err).Error("failed to read sparse file")
 		return fuse.ReadResultData(dest[:length]), syscall.EIO
 	}
 	return fuse.ReadResultData(dest[:length]), fs.OK
 }
 
+func (n *sparseIndexFile) Write(ctx context.Context, fh fs.FileHandle, data []byte, off int64) (written uint32, errno syscall.Errno) {
+	f := fh.(*SparseFileHandle)
+	length, err := f.WriteAt(data, off)
+	if err != nil {
+		// TODO clean return
+		return 0, fs.OK
+	}
+	return length, fs.OK
+}
+
 func (n *sparseIndexFile) Getattr(ctx context.Context, fh fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
-	out.Mode = fuse.S_IFREG | 0444
+	out.Mode = fuse.S_IFREG | 0644
+	out.Size = uint64(n.size)
+	out.Mtime = uint64(n.mtime.Unix())
+	return fs.OK
+}
+
+func (n *sparseIndexFile) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAttrIn, out *fuse.AttrOut) syscall.Errno {
+	out.Mode = fuse.S_IFREG | 0644
 	out.Size = uint64(n.size)
 	out.Mtime = uint64(n.mtime.Unix())
 	return fs.OK

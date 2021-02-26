@@ -148,6 +148,35 @@ func (h *SparseFileHandle) ReadAt(b []byte, offset int64) (int, error) {
 	return h.file.ReadAt(b, offset)
 }
 
+// WriteAt write to the sparse file. All accessed ranges are first written
+// to the file and then returned.
+func (h *SparseFileHandle) WriteAt(b []byte, offset int64) (uint32, error) {
+	// TODO load only first and last
+	if err := h.sf.loader.loadRange(offset, int64(len(b))); err != nil {
+		return 0, err
+	}
+	first, last := h.sf.loader.indexRange(offset, int64(len(b)))
+
+	var lenWrite int
+	h.sf.loader.mu.Lock()
+	// Write data and flag bitmap
+	f, err := os.OpenFile(h.sf.loader.name, os.O_RDWR, 0666)
+	defer f.Close()
+	for i := first; i <= last; i++ {
+		if err != nil {
+			return 0, err
+		}
+		n, err := f.WriteAt(b, int64(h.sf.loader.chunks[i].Start))
+		if err != nil {
+			return 0, err
+		}
+		lenWrite += n
+	}
+	h.sf.loader.mu.Unlock()
+
+	return uint32(lenWrite), nil
+}
+
 func (h *SparseFileHandle) Close() error {
 	return h.file.Close()
 }
