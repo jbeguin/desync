@@ -94,8 +94,7 @@ func (n *sparseIndexFile) Write(ctx context.Context, fh fs.FileHandle, data []by
 	f := fh.(*SparseFileHandle)
 	length, err := f.WriteAt(data, off)
 	if err != nil {
-		// TODO clean return
-		return 0, fs.OK
+		return 0, fs.ToErrno(err)
 	}
 	return length, fs.OK
 }

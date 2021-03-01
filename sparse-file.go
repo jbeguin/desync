@@ -152,29 +152,29 @@ func (h *SparseFileHandle) ReadAt(b []byte, offset int64) (int, error) {
 // to the file and then returned.
 func (h *SparseFileHandle) WriteAt(b []byte, offset int64) (uint32, error) {
 	// TODO load only first and last
-	if err := h.sf.loader.loadRange(offset, int64(len(b))); err != nil {
+	first, last, err := h.sf.loader.loadWriteRange(offset, int64(len(b)))
+	if err != nil {
 		return 0, err
 	}
-	first, last := h.sf.loader.indexRange(offset, int64(len(b)))
 
-	var lenWrite int
+	// var lenWrite int
 	h.sf.loader.mu.Lock()
-	// Write data and flag bitmap
+	// Write data
 	f, err := os.OpenFile(h.sf.loader.name, os.O_RDWR, 0666)
 	defer f.Close()
+	if err != nil {
+		return 0, err
+	}
+	n, err := f.WriteAt(b, offset)
+	if err != nil {
+		return 0, err
+	}
 	for i := first; i <= last; i++ {
-		if err != nil {
-			return 0, err
-		}
-		n, err := f.WriteAt(b, int64(h.sf.loader.chunks[i].Start))
-		if err != nil {
-			return 0, err
-		}
-		lenWrite += n
+		h.sf.loader.done.Set(i, true)
 	}
 	h.sf.loader.mu.Unlock()
 
-	return uint32(lenWrite), nil
+	return uint32(n), nil
 }
 
 func (h *SparseFileHandle) Close() error {
@@ -234,6 +234,35 @@ func (l *sparseFileLoader) indexRange(start, length int64) (int, int) {
 		lastChunk++
 	}
 	return firstChunk, lastChunk
+}
+
+// Loads all the chunks needed to populate the given byte range (if not already loaded)
+func (l *sparseFileLoader) loadWriteRange(start, length int64) (int, int, error) {
+	first, last := l.indexRange(start, length)
+	var chunksNeeded []int
+	l.mu.RLock()
+	for i := first; i <= last; i++ {
+		b := l.done.Get(i)
+		if b {
+			continue
+		}
+		// The file is truncated and blank, so no need to load null chunks
+		if l.chunks[i].ID == l.nullChunk.ID {
+			continue
+		}
+		if i == first || i == last {
+			chunksNeeded = append(chunksNeeded, i)
+		}
+	}
+	l.mu.RUnlock()
+
+	// TODO: Load the chunks concurrently
+	for _, chunk := range chunksNeeded {
+		if err := l.loadChunk(chunk); err != nil {
+			return first, last, err
+		}
+	}
+	return first, last, nil
 }
 
 // Loads all the chunks needed to populate the given byte range (if not already loaded)
