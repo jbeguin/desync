@@ -28,6 +28,19 @@ func (c Cache) GetChunk(id ChunkID) (*Chunk, error) {
 	switch err.(type) {
 	case nil:
 		return chunk, nil
+	case ChunkInvalid: // bad chunk, report and delete
+		msg := err.Error()
+		if cl, ok := c.l.(LocalStore); ok {
+			if err = cl.RemoveChunk(id); err != nil {
+				msg = msg + ":" + err.Error()
+			} else {
+				msg = msg + ": removed"
+			}
+		} else {
+			msg = msg + ": Not a local store. Can't remove. " + err.Error()
+			return chunk, err
+		}
+		Log.Warnln(msg)
 	case ChunkMissing:
 	default:
 		return chunk, err
