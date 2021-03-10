@@ -2,6 +2,7 @@ package desync
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -30,6 +31,7 @@ type Monitor struct {
 	FailoverStores []FailoverStore `json:"failover-stores"`
 	lastIndex      int
 	folen          int
+	Snapstore      *SnapStore
 }
 
 var (
@@ -52,6 +54,12 @@ func (monitor *Monitor) SetProgress(progress int) {
 	monitor.mu.Lock()
 	defer monitor.mu.Unlock()
 	monitor.Progress = progress
+}
+
+func (monitor *Monitor) SetSnapStore(snapstore *SnapStore) {
+	monitor.mu.Lock()
+	defer monitor.mu.Unlock()
+	monitor.Snapstore = snapstore
 }
 
 // SetCurrentStore set the current store. mutex is suppose to be used by the caller, but anyway...
@@ -95,10 +103,16 @@ func (monitor *Monitor) init(addr string) {
 	shellHandler.Prompt = ""
 
 	// Register the "status" preload file command.
-	commandName := "status"
-	commandProducer := telsh.ProducerFunc(monitor.statusProducer)
+	statusCommand := "status"
+	snapCommand := "snap"
+	takeSnapCommand := "takeSnap"
+	statusProducer := telsh.ProducerFunc(monitor.statusProducer)
+	snapProducer := telsh.ProducerFunc(monitor.snapProducer)
+	takeSnapProducer := telsh.ProducerFunc(monitor.takeSnapProducer)
 
-	shellHandler.Register(commandName, commandProducer)
+	shellHandler.Register(statusCommand, statusProducer)
+	shellHandler.Register(snapCommand, snapProducer)
+	shellHandler.Register(takeSnapCommand, takeSnapProducer)
 
 	if err := telnet.ListenAndServe(addr, shellHandler); nil != err {
 		Log.WithFields(log.Fields{
@@ -111,6 +125,14 @@ func (monitor *Monitor) statusProducer(ctx telnet.Context, name string, args ...
 	return telsh.PromoteHandlerFunc(monitor.statusHandler)
 }
 
+func (monitor *Monitor) snapProducer(ctx telnet.Context, name string, args ...string) telsh.Handler {
+	return telsh.PromoteHandlerFunc(monitor.snapHandler)
+}
+
+func (monitor *Monitor) takeSnapProducer(ctx telnet.Context, name string, args ...string) telsh.Handler {
+	return telsh.PromoteHandlerFunc(monitor.takeSnapHandler, args...)
+}
+
 func (monitor *Monitor) statusHandler(stdin io.ReadCloser, stdout io.WriteCloser, stderr io.WriteCloser, args ...string) error {
 	// building json
 	jsonStat, err := json.MarshalIndent(monitor, "", "  ")
@@ -121,5 +143,32 @@ func (monitor *Monitor) statusHandler(stdin io.ReadCloser, stdout io.WriteCloser
 	}
 
 	oi.LongWrite(stdout, jsonStat)
+	return err
+}
+
+func (monitor *Monitor) snapHandler(stdin io.ReadCloser, stdout io.WriteCloser, stderr io.WriteCloser, args ...string) error {
+	// building json
+	msg := fmt.Sprintf("snap dir : %s\tcurrent snap : %s\t\n", monitor.Snapstore.dir, monitor.Snapstore.name)
+
+	_, err := oi.LongWrite(stdout, []byte(msg))
+	return err
+}
+
+func (monitor *Monitor) takeSnapHandler(stdin io.ReadCloser, stdout io.WriteCloser, stderr io.WriteCloser, args ...string) error {
+	// building json
+	var msg string
+	if len(args) == 0 || len(args) > 2 {
+		msg = fmt.Sprintf("takeSnap take 1 or 2 arg [snapshot_name] [true/false]\n")
+	} else if args[1] != "true" && args[1] != "false" {
+		msg = fmt.Sprintf("takeSnap[%s] invalid 2nd arg [true/false]: %s\n", args[0], args[1])
+	} else {
+		msg = fmt.Sprintf("takeSnap[%s] record: %s\n", args[0], args[1])
+
+		if err := monitor.Snapstore.takeSnapshot(args[0], args[1] == "true"); err != nil {
+			msg = fmt.Sprintf("takeSnap[%s] record: %s ERROR : %s\n", args[0], args[1], err)
+		}
+	}
+
+	_, err := oi.LongWrite(stdout, []byte(msg))
 	return err
 }

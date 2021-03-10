@@ -2,6 +2,7 @@ package desync
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -39,6 +40,9 @@ type SparseFileOptions struct {
 
 	// Optional, number of goroutines to preload chunks from StateInitFile.
 	StateInitConcurrency int
+	SnapDir              string
+	SnapName             string
+	SnapRecord           bool
 }
 
 // SparseFileHandle is used to access a sparse file. All read operations performed
@@ -55,7 +59,15 @@ func NewSparseFile(name string, idx Index, s Store, opt SparseFileOptions) (*Spa
 		return nil, err
 	}
 	defer f.Close()
-	loader := newSparseFileLoader(name, idx, s)
+	fmt.Printf("NewSparseFile opt %+v\n", opt)
+
+	snap, err := NewSnapStore(opt.SnapDir, opt.SnapName, StoreOptions{}, s, idx, opt.SnapRecord)
+	if err != nil {
+		fmt.Println("NewSparseFile err ", err)
+		return nil, err
+	}
+
+	loader := newSparseFileLoader(name, idx, s, snap)
 	sf := &SparseFile{
 		name:   name,
 		idx:    idx,
@@ -150,17 +162,14 @@ func (h *SparseFileHandle) ReadAt(b []byte, offset int64) (int, error) {
 
 // WriteAt write to the sparse file. All accessed ranges are first written
 // to the file and then returned.
-func (h *SparseFileHandle) WriteAt(b []byte, offset int64) (uint32, error) {
-	// TODO load only first and last
-	first, last, err := h.sf.loader.loadWriteRange(offset, int64(len(b)))
-	if err != nil {
+func (h *SparseFileHandle) WriteAt(b []byte, offset int64) (int, error) {
+	// fmt.Printf("offset, %d\tsize %d\tstart %d\tend %d\n", off, size, start, end)
+	if err := h.sf.loader.writeRange(b, offset); err != nil {
+		fmt.Printf("WriteAt ERROR \n", err)
 		return 0, err
 	}
-
-	// var lenWrite int
-	h.sf.loader.mu.Lock()
 	// Write data
-	f, err := os.OpenFile(h.sf.loader.name, os.O_RDWR, 0666)
+	f, err := os.OpenFile(h.sf.name, os.O_RDWR, 0666)
 	defer f.Close()
 	if err != nil {
 		return 0, err
@@ -169,12 +178,7 @@ func (h *SparseFileHandle) WriteAt(b []byte, offset int64) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	for i := first; i <= last; i++ {
-		h.sf.loader.done.Set(i, true)
-	}
-	h.sf.loader.mu.Unlock()
-
-	return uint32(n), nil
+	return n, nil
 }
 
 func (h *SparseFileHandle) Close() error {
@@ -193,12 +197,13 @@ type sparseFileLoader struct {
 	mu   sync.RWMutex
 	mupb sync.RWMutex
 	s    Store
+	snap *SnapStore
 
 	nullChunk *NullChunk
 	chunks    []*sparseIndexChunk
 }
 
-func newSparseFileLoader(name string, idx Index, s Store) *sparseFileLoader {
+func newSparseFileLoader(name string, idx Index, s Store, snap *SnapStore) *sparseFileLoader {
 	chunks := make([]*sparseIndexChunk, 0, len(idx.Chunks))
 	for _, c := range idx.Chunks {
 		chunks = append(chunks, &sparseIndexChunk{IndexChunk: c})
@@ -209,6 +214,7 @@ func newSparseFileLoader(name string, idx Index, s Store) *sparseFileLoader {
 		done:      bitmap.New(len(idx.Chunks)),
 		chunks:    chunks,
 		s:         s,
+		snap:      snap,
 		nullChunk: NewNullChunk(idx.Index.ChunkSizeMax),
 	}
 }
@@ -237,32 +243,59 @@ func (l *sparseFileLoader) indexRange(start, length int64) (int, int) {
 }
 
 // Loads all the chunks needed to populate the given byte range (if not already loaded)
-func (l *sparseFileLoader) loadWriteRange(start, length int64) (int, int, error) {
-	first, last := l.indexRange(start, length)
-	var chunksNeeded []int
-	l.mu.RLock()
+func (l *sparseFileLoader) writeRange(b []byte, offset int64) error {
+	// fmt.Printf("writeRange -------------\n")
+	lenb := int64(len(b))
+	first, last := l.indexRange(offset, lenb)
 	for i := first; i <= last; i++ {
-		b := l.done.Get(i)
-		if b {
-			continue
-		}
-		// The file is truncated and blank, so no need to load null chunks
-		if l.chunks[i].ID == l.nullChunk.ID {
-			continue
-		}
+		// fmt.Printf("writeRange %d\n", i)
+		off, size := l.snap.GetOffSize(i)
+		start := off - offset
+		end := start + size
+		var data []byte
 		if i == first || i == last {
-			chunksNeeded = append(chunksNeeded, i)
+			if l.snap.record {
+				var bo []byte
+				chunkO, err := l.snap.GetIndexedChunk(i, l.chunks[i].ID)
+				if err != nil {
+					fmt.Printf("writeRange err %s\n", err)
+					return err
+				}
+				bo, err = chunkO.Uncompressed()
+				if err != nil {
+					return err
+				}
+				if first == last {
+					data = append(append(bo[:offset-off], b...), bo[offset-off+lenb:]...)
+				} else if i == first {
+					data = append(bo[:offset-off], b[:size-offset+off]...)
+				} else {
+					data = append(b[start:], bo[lenb-start:]...)
+				}
+			} else if !l.done.Get(i) && l.chunks[i].ID != l.nullChunk.ID {
+				l.loadChunk(i)
+			}
+		} else if l.snap.record {
+			data = b[start:end]
+		}
+		if l.snap.record {
+			chunk := NewChunkFromUncompressed(data)
+			err := l.snap.StoreIndexedChunk(i, chunk)
+			if err != nil {
+				return err
+			}
+		}
+		if !l.done.Get(i) {
+			l.mu.Lock()
+			l.done.Set(i, true)
+			l.mu.Unlock()
 		}
 	}
-	l.mu.RUnlock()
+	return nil
+}
 
-	// TODO: Load the chunks concurrently
-	for _, chunk := range chunksNeeded {
-		if err := l.loadChunk(chunk); err != nil {
-			return first, last, err
-		}
-	}
-	return first, last, nil
+func (l *sparseFileLoader) takeSnapshot(name string, record bool) error {
+	return l.snap.takeSnapshot(name, record)
 }
 
 // Loads all the chunks needed to populate the given byte range (if not already loaded)
@@ -295,7 +328,9 @@ func (l *sparseFileLoader) loadRange(start, length int64) error {
 func (l *sparseFileLoader) loadChunk(i int) error {
 	var loadErr error
 	l.chunks[i].once.Do(func() {
-		c, err := l.s.GetChunk(l.chunks[i].ID)
+		// w, err := l.snap.GetChunk(l.chunks[i].ID)
+		c, err := l.snap.GetIndexedChunk(i, l.chunks[i].ID)
+		// c, err := l.s.GetChunk(l.chunks[i].ID)
 		if err != nil {
 			loadErr = err
 			return
@@ -319,6 +354,7 @@ func (l *sparseFileLoader) loadChunk(i int) error {
 		}
 
 		l.mu.Lock()
+		// fmt.Printf("loadChunk l.done.Set  %d \n", i)
 		l.done.Set(i, true)
 		l.mu.Unlock()
 	})

@@ -62,6 +62,9 @@ needing to restart the server. This can be done under load as well.
 	flags.StringVarP(&opt.StateSaveFile, "cor-state-save", "", "", "file to store the state for copy-on-read")
 	flags.StringVarP(&opt.StateInitFile, "cor-state-init", "", "", "copy-on-read state init file")
 	flags.IntVarP(&opt.StateInitConcurrency, "cor-init-n", "", 10, "number of gorooutines to use for initialization (with --cor-state-init)")
+	flags.StringVarP(&opt.SnapDir, "snap-dir", "", "", "write store path")
+	flags.StringVarP(&opt.SnapName, "snap-name", "", "", `snapshot name to load if != ""`)
+	flags.BoolVarP(&opt.SnapRecord, "snap-record", "", false, "record write to prepare snapshot")
 	addStoreOptions(&opt.cmdStoreOptions, flags)
 	return cmd
 }
@@ -114,6 +117,18 @@ func runMountIndex(ctx context.Context, opt mountIndexOptions, args []string) er
 	// Pick a filesystem based on the options
 	var ifs desync.MountFS
 	if opt.corFile != "" {
+		// Check snapstore oprions
+		if opt.SnapRecord {
+			if opt.SnapDir == "" {
+				return errors.New("--snap-record can't be set without --snap-dir option")
+			}
+		}
+		if opt.SnapName != "" {
+			if opt.SnapDir == "" {
+				return errors.New("--snap-name can't be set without --snap-dir option")
+			}
+		}
+		// Create sparseMount
 		fs, err := desync.NewSparseMountFS(idx, mountFName, s, opt.corFile, opt.SparseFileOptions)
 		if err != nil {
 			return err

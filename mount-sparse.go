@@ -91,12 +91,13 @@ func (n *sparseIndexFile) Read(ctx context.Context, fh fs.FileHandle, dest []byt
 }
 
 func (n *sparseIndexFile) Write(ctx context.Context, fh fs.FileHandle, data []byte, off int64) (written uint32, errno syscall.Errno) {
+	// fmt.Printf("sparseIndexFile.Write\n")
 	f := fh.(*SparseFileHandle)
 	length, err := f.WriteAt(data, off)
 	if err != nil {
 		return 0, fs.ToErrno(err)
 	}
-	return length, fs.OK
+	return uint32(length), fs.OK
 }
 
 func (n *sparseIndexFile) Getattr(ctx context.Context, fh fs.FileHandle, out *fuse.AttrOut) syscall.Errno {

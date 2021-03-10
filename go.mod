@@ -20,12 +20,15 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.11.0
 	github.com/pkg/xattr v0.4.1
+	github.com/quadrifoglio/go-qemu v0.0.0-20200619083131-ee4f04687ec3
 	github.com/reiver/go-oi v1.0.0
 	github.com/reiver/go-telnet v0.0.0-20180421082511-9ff0b2ab096e
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.6.1
+	github.com/timtadh/data-structures v0.5.3 // indirect
+	github.com/vasi/qcow2 v0.0.0-20161223020502-e8cca873d52f
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	google.golang.org/api v0.18.0
