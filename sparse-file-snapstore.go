@@ -22,7 +22,7 @@ type SnapStore struct {
 }
 
 // NewSnapStore creates an instance of a snapshot write store
-func NewSnapStore(dir string, name string, opt StoreOptions, origin Store, originIndex Index, record bool) (*SnapStore, error) {
+func NewSnapStore(dir string, name string, opt StoreOptions, origin Store, originIndex *Index, record bool) (*SnapStore, error) {
 	snap := &SnapStore{
 		dir:    dir,
 		name:   name,
@@ -45,11 +45,24 @@ func NewSnapStore(dir string, name string, opt StoreOptions, origin Store, origi
 			fmt.Printf("NewSnapStore loadSnapshot err: %s\n", err)
 			return snap, err
 		}
-		fmt.Printf("NewSnapStore loadSnapshot len(snap.snapIndex.Chunks) %d\n", len(snap.snapIndex.Chunks))
 	} else {
+		index := FormatIndex{
+			FormatHeader: FormatHeader{Size: 48, Type: CaFormatIndex},
+			FeatureFlags: originIndex.Index.FeatureFlags,
+			ChunkSizeMin: originIndex.Index.ChunkSizeMin,
+			ChunkSizeAvg: originIndex.Index.ChunkSizeAvg,
+			ChunkSizeMax: originIndex.Index.ChunkSizeMax,
+		}
+		// chunks := originIndex.Chunks[:]
+		chunks := make([]IndexChunk, len(originIndex.Chunks))
+		for i, c := range originIndex.Chunks {
+			chunks[i].ID = c.ID
+			chunks[i].Start = c.Start
+			chunks[i].Size = c.Size
+		}
 		snap.snapIndex = Index{
-			Index:  originIndex.Index,
-			Chunks: originIndex.Chunks[:],
+			Index:  index,
+			Chunks: chunks,
 		}
 	}
 	if singleMon != nil { // log to monitor
@@ -67,13 +80,10 @@ func (s *SnapStore) GetChunkID(i int) ChunkID {
 }
 
 func (s *SnapStore) GetIndexedChunk(i int, id ChunkID) (*Chunk, error) {
-	// fmt.Printf("GetIndexedChunk s.name %s\n", s.name)
-	// fmt.Printf("GetIndexedChunk s.snapIndex.Chunks %d\n", len(s.snapIndex.Chunks))
 	c := s.snapIndex.Chunks[i]
 	if c.ID == id {
 		return s.origin.GetChunk(c.ID)
 	}
-	// fmt.Printf("GetIndexedChunk from write store %d\n", i)
 	if s.w != nil {
 		return s.w.GetChunk(c.ID)
 	} else {
@@ -97,11 +107,11 @@ func (s *SnapStore) StoreIndexedChunk(i int, chunk *Chunk) error {
 	}
 	s.muw.Lock()
 	defer s.muw.Unlock()
-	// fmt.Printf("StoreIndexedChunk to write store\t %d\tID %s\n", i, chunk.ID().String())
 	err := s.w.StoreChunk(chunk)
-	if err == nil {
-		s.snapIndex.Chunks[i].ID = chunk.ID()
+	if err != nil {
+		return err
 	}
+	s.snapIndex.Chunks[i].ID = chunk.ID()
 	return err
 }
 
@@ -119,7 +129,6 @@ func (s *SnapStore) loadSnapshot(name string) error {
 	}
 	defer f.Close()
 	i, err := IndexFromReader(f)
-	fmt.Printf("loadSnapshot len(i.Chunks) %d\n", len(i.Chunks))
 	s.snapIndex = i
 	return err
 }
