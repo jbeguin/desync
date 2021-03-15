@@ -20,7 +20,7 @@ func TestLoaderChunkRange(t *testing.T) {
 		},
 	}
 
-	loader := newSparseFileLoader("", idx, nil)
+	loader := newSparseFileLoader("", idx, nil, nil)
 
 	tests := []struct {
 		// Input ranges
