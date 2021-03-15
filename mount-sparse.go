@@ -85,6 +85,7 @@ func (n *sparseIndexFile) Read(ctx context.Context, fh fs.FileHandle, dest []byt
 		if err == io.EOF {
 			return fuse.ReadResultData(dest[:length]), fs.OK
 		}
+		Log.WithError(err).Error("failed to read sparse file")
 		return fuse.ReadResultData(dest[:length]), syscall.EIO
 	}
 	return fuse.ReadResultData(dest[:length]), fs.OK

@@ -17,11 +17,12 @@ var _ WriteStore = S3Store{}
 
 // S3StoreBase is the base object for all chunk and index stores with S3 backing
 type S3StoreBase struct {
-	Location string
-	client   *minio.Client
-	bucket   string
-	prefix   string
-	opt      StoreOptions
+	Location   string
+	client     *minio.Client
+	bucket     string
+	prefix     string
+	opt        StoreOptions
+	converters Converters
 }
 
 // S3Store is a read-write store with S3 backing
@@ -32,7 +33,7 @@ type S3Store struct {
 // NewS3StoreBase initializes a base object used for chunk or index stores backed by S3.
 func NewS3StoreBase(u *url.URL, s3Creds *credentials.Credentials, region string, opt StoreOptions, lookupType minio.BucketLookupType) (S3StoreBase, error) {
 	var err error
-	s := S3StoreBase{Location: u.String(), opt: opt}
+	s := S3StoreBase{Location: u.String(), opt: opt, converters: opt.converters()}
 	if !strings.HasPrefix(u.Scheme, "s3+http") {
 		return s, fmt.Errorf("invalid scheme '%s', expected 's3+http' or 's3+https'", u.Scheme)
 	}
@@ -88,8 +89,14 @@ func NewS3Store(location *url.URL, s3Creds *credentials.Credentials, region stri
 // GetChunk reads and returns one chunk from the store
 func (s S3Store) GetChunk(id ChunkID) (*Chunk, error) {
 	name := s.nameFromID(id)
+	var attempt int
+retry:
+	attempt++
 	obj, err := s.client.GetObject(s.bucket, name, minio.GetObjectOptions{})
 	if err != nil {
+		if attempt < s.opt.ErrorRetry {
+			goto retry
+		}
 		return nil, errors.Wrap(err, s.String())
 	}
 	defer obj.Close()
@@ -108,29 +115,30 @@ func (s S3Store) GetChunk(id ChunkID) (*Chunk, error) {
 	if err != nil {
 		return nil, err
 	}
-	if s.opt.Uncompressed {
-		return NewChunkWithID(id, b, nil, s.opt.SkipVerify)
-	}
-	return NewChunkWithID(id, nil, b, s.opt.SkipVerify)
+	return NewChunkFromStorage(id, b, s.converters, s.opt.SkipVerify)
 }
 
 // StoreChunk adds a new chunk to the store
 func (s S3Store) StoreChunk(chunk *Chunk) error {
 	contentType := "application/zstd"
 	name := s.nameFromID(chunk.ID())
-	var (
-		b   []byte
-		err error
-	)
-	if s.opt.Uncompressed {
-		b, err = chunk.Uncompressed()
-	} else {
-		b, err = chunk.Compressed()
-	}
+	b, err := chunk.Data()
 	if err != nil {
 		return err
 	}
+	b, err = s.converters.toStorage(b)
+	if err != nil {
+		return err
+	}
+	var attempt int
+retry:
+	attempt++
 	_, err = s.client.PutObject(s.bucket, name, bytes.NewReader(b), int64(len(b)), minio.PutObjectOptions{ContentType: contentType})
+	if err != nil {
+		if attempt < s.opt.ErrorRetry {
+			goto retry
+		}
+	}
 	return errors.Wrap(err, s.String())
 }
 

@@ -6,8 +6,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+<<<<<<< HEAD
+=======
+	"os/signal"
+>>>>>>> master
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/folbricht/desync"
 	"github.com/pkg/errors"

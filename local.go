@@ -15,6 +15,10 @@ import (
 
 var _ WriteStore = LocalStore{}
 
+const (
+	tmpChunkPrefix = ".tmp-cacnk"
+)
+
 // LocalStore casync store
 type LocalStore struct {
 	Base string
@@ -24,6 +28,8 @@ type LocalStore struct {
 	UpdateTimes bool
 
 	opt StoreOptions
+
+	converters Converters
 }
 
 // NewLocalStore creates an instance of a local castore, it only checks presence
@@ -39,7 +45,7 @@ func NewLocalStore(dir string, opt StoreOptions) (LocalStore, error) {
 	if singleMon != nil { // log to monitor
 		singleMon.SetLocalStore(dir)
 	}
-	return LocalStore{Base: dir, opt: opt}, nil
+	return LocalStore{Base: dir, opt: opt, converters: opt.converters()}, nil
 }
 
 // GetChunk reads and returns one (compressed!) chunk from the store
@@ -49,10 +55,7 @@ func (s LocalStore) GetChunk(id ChunkID) (*Chunk, error) {
 	if os.IsNotExist(err) {
 		return nil, ChunkMissing{id}
 	}
-	if s.opt.Uncompressed {
-		return NewChunkWithID(id, b, nil, s.opt.SkipVerify)
-	}
-	return NewChunkWithID(id, nil, b, s.opt.SkipVerify)
+	return NewChunkFromStorage(id, b, s.converters, s.opt.SkipVerify)
 }
 
 // RemoveChunk deletes a chunk, typically an invalid one, from the filesystem.
@@ -68,22 +71,18 @@ func (s LocalStore) RemoveChunk(id ChunkID) error {
 // StoreChunk adds a new chunk to the store
 func (s LocalStore) StoreChunk(chunk *Chunk) error {
 	d, p := s.nameFromID(chunk.ID())
-	var (
-		b   []byte
-		err error
-	)
-	if s.opt.Uncompressed {
-		b, err = chunk.Uncompressed()
-	} else {
-		b, err = chunk.Compressed()
+	b, err := chunk.Data()
+	if err != nil {
+		return err
 	}
+	b, err = s.converters.toStorage(b)
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(d, 0755); err != nil {
 		return err
 	}
-	tmp, err := tempfile.NewMode(d, ".tmp-cacnk", 0644)
+	tmp, err := tempfile.NewMode(d, tmpChunkPrefix, 0644)
 	if err != nil {
 		return err
 	}
@@ -189,6 +188,13 @@ func (s LocalStore) Prune(ctx context.Context, ids map[ChunkID]struct{}) error {
 		if info.IsDir() { // Skip dirs
 			return nil
 		}
+
+		// If the chunk is only partially downloaded remove it
+		if strings.HasPrefix(filepath.Base(path), tmpChunkPrefix) {
+			_ = os.Remove(path)
+			return nil
+		}
+
 		// Skip compressed chunks if this is running in uncompressed mode and vice-versa
 		var sID string
 		if s.opt.Uncompressed {

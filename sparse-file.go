@@ -1,7 +1,7 @@
 package desync
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"io/ioutil"
 	"os"
@@ -59,7 +59,6 @@ func NewSparseFile(name string, idx Index, s Store, opt SparseFileOptions) (*Spa
 		return nil, err
 	}
 	defer f.Close()
-	fmt.Printf("NewSparseFile opt %+v\n", opt)
 
 	snap, err := NewSnapStore(opt.SnapDir, opt.SnapName, StoreOptions{}, s, &idx, opt.SnapRecord)
 	if err != nil {
@@ -205,11 +204,6 @@ type sparseFileLoader struct {
 }
 
 func newSparseFileLoader(name string, idx Index, s Store, snap *SnapStore) *sparseFileLoader {
-	// chunks := make([]*sparseIndexChunk, 0, len(idx.Chunks))
-	// for _, c := range idx.Chunks {
-	// 	chunks = append(chunks, &sparseIndexChunk{IndexChunk: c})
-	// }
-
 	return &sparseFileLoader{
 		name: name,
 		done: bitmap.New(len(idx.Chunks)),
