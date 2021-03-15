@@ -165,7 +165,7 @@ func (h *SparseFileHandle) ReadAt(b []byte, offset int64) (int, error) {
 func (h *SparseFileHandle) WriteAt(b []byte, offset int64) (int, error) {
 	// fmt.Printf("offset, %d\tsize %d\tstart %d\tend %d\n", off, size, start, end)
 	if err := h.sf.loader.writeRange(b, offset); err != nil {
-		fmt.Printf("WriteAt ERROR \n", err)
+		fmt.Println("WriteAt ERROR", err)
 		return 0, err
 	}
 	// Write data
