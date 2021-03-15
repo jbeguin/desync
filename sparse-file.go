@@ -2,6 +2,7 @@ package desync
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"github.com/boljen/go-bitmap"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -62,7 +62,6 @@ func NewSparseFile(name string, idx Index, s Store, opt SparseFileOptions) (*Spa
 
 	snap, err := NewSnapStore(opt.SnapDir, opt.SnapName, StoreOptions{}, s, &idx, opt.SnapRecord)
 	if err != nil {
-		fmt.Println("NewSparseFile err ", err)
 		return nil, err
 	}
 
@@ -262,7 +261,7 @@ func (l *sparseFileLoader) writeRange(b []byte, offset int64) error {
 						fmt.Printf("writeRange err %s\n", err)
 						return err
 					}
-					bo, err = chunkO.Uncompressed()
+					bo, err = chunkO.Data()
 					if err != nil {
 						return err
 					}
@@ -282,7 +281,7 @@ func (l *sparseFileLoader) writeRange(b []byte, offset int64) error {
 			data = b[start:end]
 		}
 		if l.snap.record {
-			chunk := NewChunkFromUncompressed(data)
+			chunk := NewChunk(data)
 			err := l.snap.StoreIndexedChunk(i, chunk)
 			if err != nil {
 				return err
@@ -333,7 +332,7 @@ func (l *sparseFileLoader) loadChunk(i int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	b, err := c.Uncompressed()
+	b, err := c.Data()
 	if err != nil {
 		return nil, err
 	}
